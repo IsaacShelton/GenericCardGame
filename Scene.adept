@@ -1,0 +1,125 @@
+
+func scene() Scene {
+    null_scene Scene
+    null_scene.id = 0
+    null_scene.name = 'null scene'
+    null_scene.setup = null
+    null_scene.exit = null
+    null_scene.defer_func = null
+    null_scene.step = null
+    null_scene.draw = null
+    null_scene.click = null
+    null_scene.release = null
+    null_scene.char = null
+    null_scene.key = null
+    null_scene.instance = null
+    null_scene.instance_size = 0
+    return null_scene
+}
+
+func addScene(this *<Scene> List, id int, name *ubyte, handler *$SceneHandler){
+    this.add(scene())
+    
+    scene *Scene = this.getPointer(this.length - 1)
+    scene.id = id
+    scene.name = name
+    scene.setup = func null &setup(*$SceneHandler) as ptr as func(ptr) void
+    scene.enter = func null &enter(*$SceneHandler) as ptr as func(ptr) void
+    scene.exit = func null &exit(*$SceneHandler) as ptr as func(ptr) void
+    scene.defer_func = func null &__defer__(*$SceneHandler) as ptr as func(ptr) void
+    scene.step = func null &step(*$SceneHandler) as ptr as func(ptr) void
+    scene.draw = func null &draw(*$SceneHandler) as ptr as func(ptr) void
+    scene.click = func null &click(*$SceneHandler, float, float, int) as ptr as func(ptr, float, float, int) void
+    scene.release = func null &release(*$SceneHandler, float, float, int) as ptr as func(ptr, float, float, int) void
+    scene.char = func null &char(*$SceneHandler, uint) as ptr as func(ptr, uint) void
+    scene.key = func null &key(*$SceneHandler, int, int, int, int) as ptr as func(ptr, int, int, int, int) void
+    scene.instance = handler
+    scene.instance_size = sizeof $SceneHandler
+    
+    if scene.setup as ptr {
+        setupFunction func(ptr) void = scene.setup
+        setupFunction(handler)
+    }
+}
+
+struct Scene (
+    id int,
+    name *ubyte,
+    setup,
+    enter,
+    exit,
+    defer_func,
+    step,
+    draw func(ptr) void,
+    click func(ptr, float, float, int) void,
+    release func(ptr, float, float, int) void,
+    char func(ptr, uint) void,
+    key func(ptr, int, int, int, int) void,
+    instance ptr,
+    instance_size usize
+) {
+    func __defer__ {
+        if this.instance, this.callExit()
+        delete this.instance
+    }
+
+    func callSetup {
+        this.callPseudoMethod(this.setup)
+    }
+    
+    func callEnter {
+        this.callPseudoMethod(this.enter)
+    }
+    
+    func callExit {
+        this.callPseudoMethod(this.exit)
+    }
+    
+    func callDefer {
+        this.callPseudoMethod(this.defer_func)
+    }
+    
+    func callStep {
+        this.callPseudoMethod(this.step)
+    }
+    
+    func callDraw {
+        this.callPseudoMethod(this.draw)
+    }
+    
+    func callClick(x, y float, button int) {
+        this.callPseudoMethod(this.click, x, y, button)
+    }
+    
+    func callRelease(x, y float, button int) {
+        this.callPseudoMethod(this.release, x, y, button)
+    }
+    
+    func callKey(key, scancode, action, mods int) {
+        this.callPseudoMethod(this.key, key, scancode, action, mods)
+    }
+    
+    func callChar(c uint) {
+        this.callPseudoMethod(this.char, c)
+    }
+    
+    func callPseudoMethod(method func(ptr) void) {
+        unless method as ptr, return
+        method(this.instance)
+    }
+    
+    func callPseudoMethod(method func(ptr, uint) void, a uint) {
+        unless method as ptr, return
+        method(this.instance, a)
+    }
+    
+    func callPseudoMethod(method func(ptr, float, float, int) void, a, b float, c int) {
+        unless method as ptr, return
+        method(this.instance, a, b, c)
+    }
+    
+    func callPseudoMethod(method func(ptr, int, int, int, int) void, a, b, c, d int) {
+        unless method as ptr, return
+        method(this.instance, a, b, c, d)
+    }
+}

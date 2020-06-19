@@ -1,0 +1,359 @@
+
+#default NetworkManager_warn_writeOutgoing_without_newline true
+#default NetworkManager_dump_read_thread  false
+#default NetworkManager_dump_write_thread false
+
+import 'sys/cstdio.adept'
+import 'sys/cstdlib.adept'
+import 'sys/cstring.adept'
+import 'sys/cerrno.adept'
+import 'posix/pthread.adept'
+
+#if __windows__
+    import 'windows/winsock.adept'
+
+    alias Socket = SOCKET
+    alias IOCtlOpt = uint
+    func closeSocket(socket Socket) int = closesocket(socket)
+    func validSocket(socket Socket) bool = socket != INVALID_SOCKET
+    func ioctlSocket(socket Socket, cmd uint, argp *IOCtlOpt) int =
+        ioctlsocket(socket, cmd, argp)
+#else
+    import 'unix/netdb.adept'
+    import 'unix/fd_set.adept'
+    import 'unix/unistd.adept'
+    import 'unix/sys/ioctl.adept'
+    import 'unix/arpa/inet.adept'
+    import 'unix/sys/socket.adept'
+    import 'unix/netinet/tcp.adept'
+    import 'unix/sys/select.adept'
+    
+    alias Socket = int
+    alias IOCtlOpt = int
+    func closeSocket(socket Socket) int = close(socket)
+    func validSocket(socket Socket) bool = socket >= 0
+    func ioctlSocket(socket Socket, cmd uint, argp *IOCtlOpt) int =
+        ioctl(socket, cmd, argp)
+#end
+
+func startupNetworking successful {
+    errno = 0
+    #if __windows__
+    wsaStartupResult int = WSAStartup(WINSOCK_2_2, undef wsaData WSADATA)    
+    if wsaStartupResult != 0 {
+        printf('WSAStartup failed: %d\n', wsaStartupResult)
+        return false
+    }
+    #end
+    return true
+}
+
+func cleanupNetworking {
+    #if __windows__
+    WSACleanup()
+    #end
+}
+
+struct NetworkManager (
+    sockfd, port int,
+    serveraddr sockaddr_in,
+    server *hostent,
+    hostname *ubyte,
+    buffer_size usize,
+    should_stop, should_flush bool,
+    should_stop_mutex pthread_mutex_t,
+    use_display_thread bool,
+    readThread, writeThread, displayThread pthread_t,
+    incoming_mutex, outgoing_mutex pthread_mutex_t,
+    incoming, outgoing String,
+    is_online bool,
+    is_online_mutex pthread_mutex_t
+) {
+    func initialize(buffer_size usize){
+        startupNetworking()
+        this.buffer_size = buffer_size
+        pthread_mutex_init(&this.should_stop_mutex, null)
+        pthread_mutex_init(&this.incoming_mutex, null)
+        pthread_mutex_init(&this.outgoing_mutex, null)
+        pthread_mutex_init(&this.is_online_mutex, null)
+        this.is_online = false
+    }
+
+    func __defer__ {
+        pthread_mutex_destroy(&this.should_stop_mutex)
+        pthread_mutex_destroy(&this.incoming_mutex)
+        pthread_mutex_destroy(&this.outgoing_mutex)
+        pthread_mutex_destroy(&this.is_online_mutex)
+        cleanupNetworking()
+    }
+
+    func connect(hostname String, port int, out errorMessage *String) successful {
+        host *ubyte = hostname.cstr()
+        defer delete host
+
+        this.sockfd = socket(AF_INET, SOCK_STREAM, 0)
+        if this.sockfd < 0 {
+            if errorMessage, *errorMessage = "socket() failed"
+            return false
+        }
+
+        this.server = gethostbyname(host)
+        if this.server == null {
+            if errorMessage, *errorMessage = "Couldn't resolve hostname"
+            return false
+        }
+
+        memset(&this.serveraddr, 0, sizeof sockaddr_in)
+        this.serveraddr.sin_family = AF_INET
+        memcpy(this.server.h_addr_list[0], &this.serveraddr.sin_addr.s_addr, this.server.h_length)
+        this.serveraddr.sin_port = htons(port)
+        
+        flags int = 1
+        if setsockopt(this.sockfd, IPPROTO_TCP, TCP_NODELAY, &flags, sizeof int) {
+            if errorMessage, *errorMessage = "setsockopt(TCP_NODELAY) failed"
+            return false
+        }
+
+        #if __windows__
+        // On windows, expect 'WSAEWOULDBLOCK' back after calling connect
+        initial_connect_failed bool = connect(this.sockfd, &this.serveraddr as *sockaddr, sizeof sockaddr_in) < 0 && WSAGetLastError() != WSAEWOULDBLOCK
+        #else
+        // On unix, expect errno to be 'EINPROGRESS'
+        initial_connect_failed bool = connect(this.sockfd, &this.serveraddr as *sockaddr, sizeof sockaddr_in) < 0 && errno != EINPROGRESS
+        #end
+        
+        if initial_connect_failed {
+            if errorMessage, *errorMessage = "connect() failed"
+            return false
+        }
+        
+        this.is_online = true
+        return true
+    }
+
+    func spawnThreads(use_display_thread bool, out errorMessage *String) successful {
+        this.should_stop = false
+
+        ioctlopt IOCtlOpt = 1
+        ioctlSocket(this.sockfd, FIONBIO, &ioctlopt)
+
+        if pthread_create(&this.readThread, null, func &reading(*NetworkManager) as ptr as func(ptr) ptr, this as ptr) {
+            if errorMessage, *errorMessage = "Failed to create reading thread"
+            this.setIsOnline(false)
+            return false
+        }
+
+        if pthread_create(&this.writeThread, null, func &writing(*NetworkManager) as ptr as func(ptr) ptr, this as ptr) {
+            if errorMessage, *errorMessage = "Failed to create writing thread"
+            this.setIsOnline(false)
+            return false
+        }
+
+        if use_display_thread, if pthread_create(&this.displayThread, null, func &displaying(*NetworkManager) as ptr as func(ptr) ptr, this as ptr) {
+            if errorMessage, *errorMessage = "Failed to create display thread"
+            this.setIsOnline(false)
+            return false
+        }
+        
+        this.use_display_thread = use_display_thread
+        return true
+    }
+
+    func reading ptr {
+        buffer *ubyte = new ubyte * (this.buffer_size + 1)
+        defer delete buffer
+        
+        #if NetworkManager_dump_read_thread
+        filename String = "readthread_" + toString(time(null)) + ".txt"
+        filename_cstr *ubyte = filename.cstr()
+        defer delete filename_cstr
+        
+        file_contents String
+        f *FILE = fopen(filename_cstr, 'w')
+        unless f, return null
+        
+        defer fclose(f)
+        defer fwrite(file_contents.array, sizeof ubyte, file_contents.length, f)
+        #end
+        
+        until break {
+            pthread_mutex_lock(&this.should_stop_mutex)
+            should_stop bool = this.should_stop
+            pthread_mutex_unlock(&this.should_stop_mutex)
+            if should_stop, break
+            
+            memset(buffer, 0, this.buffer_size + 1)
+            n int = read(this.sockfd, buffer, this.buffer_size)
+            
+            errorcode int = errno
+            if n < 0 {
+                if errorcode != EAGAIN {
+                    printf('Error: read() failed %d\n', errorcode)
+                    this.setIsOnline(false)
+                    return null
+                }
+            } else {
+                pthread_mutex_lock(&this.incoming_mutex)
+                
+                #if NetworkManager_dump_read_thread
+                file_contents.append(stringConstant(buffer))
+                #end
+                
+                this.incoming.append(stringConstant(buffer))
+                pthread_mutex_unlock(&this.incoming_mutex)
+            }
+        }
+        return null
+    }
+    
+    func writing ptr {
+        buffer *ubyte = new ubyte * this.buffer_size
+        defer delete buffer
+        
+        #if NetworkManager_dump_write_thread
+        filename String = "writethread_" + toString(time(null)) + ".txt"
+        filename_cstr *ubyte = filename.cstr()
+        defer delete filename_cstr
+        
+        file_contents String
+        f *FILE = fopen(filename_cstr, 'w')
+        unless f, return null
+        
+        defer fclose(f)
+        defer fwrite(file_contents.array, sizeof ubyte, file_contents.length, f)
+        #end
+        
+        until break {
+            pthread_mutex_lock(&this.should_stop_mutex)
+            should_stop bool = this.should_stop
+            should_flush bool = this.should_flush
+            pthread_mutex_unlock(&this.should_stop_mutex)
+            
+            if should_stop {
+                unless should_flush, break
+                
+                pthread_mutex_lock(&this.outgoing_mutex)
+                left_to_send usize = this.outgoing.length
+                pthread_mutex_unlock(&this.outgoing_mutex)
+                if left_to_send == 0, break
+            }
+
+            pthread_mutex_lock(&this.outgoing_mutex)
+            defer pthread_mutex_unlock(&this.outgoing_mutex)
+
+            until this.outgoing.empty() {
+                length usize = this.outgoing.length > this.buffer_size ? this.buffer_size : this.outgoing.length
+                memcpy(buffer, this.outgoing.array, length)
+                buffer[length] = 0x00
+                
+                #if NetworkManager_dump_write_thread
+                file_contents.append(this.outgoing.range(0, length))
+                #end
+                
+                this.outgoing.decapitate(length)
+                
+                if write(this.sockfd, buffer, length) < 0 {
+                    printf('Error: write() failed\n')
+                    this.setIsOnline(false)
+                    return null
+                }
+            }
+        }
+        return null
+    }
+    
+    func displaying ptr {
+        // Displaying thread for reading and displaying incoming data
+        should_stop bool = false
+        until should_stop {
+            pthread_mutex_lock(&this.should_stop_mutex)
+            should_stop = this.should_stop
+            pthread_mutex_unlock(&this.should_stop_mutex)
+            if should_stop, break
+            
+            incoming String
+            if this.readIncoming(&incoming) {
+                place("=> " + incoming)
+            }
+        }
+        return null
+    }
+
+    func stop(should_flush bool, out errorMessage *String) successful {
+        pthread_mutex_lock(&this.should_stop_mutex)
+        this.should_stop = true
+        this.should_flush = should_flush
+        pthread_mutex_unlock(&this.should_stop_mutex)
+
+        if pthread_join(this.readThread, null) {
+            if errorMessage, *errorMessage = "Failed to join read thread"
+            this.setIsOnline(false)
+            return false
+        }
+
+        if pthread_join(this.writeThread, null) {
+            if errorMessage, *errorMessage = "Failed to join write thread"
+            this.setIsOnline(false)
+            return false
+        }
+
+        if this.use_display_thread, if pthread_join(this.displayThread, null) {
+            if errorMessage, *errorMessage = "Failed to join display thread"
+            this.setIsOnline(false)
+            return false
+        }
+
+        closeSocket(this.sockfd)
+        this.is_online = false
+        return true
+    }
+    
+    func waitForever {
+        should_stop bool = false
+        until should_stop {
+            pthread_mutex_lock(&this.should_stop_mutex)
+            should_stop = this.should_stop
+            pthread_mutex_unlock(&this.should_stop_mutex)
+        }
+    }
+    
+    func writeOutgoing(string String) successful {
+        #if NetworkManager_warn_writeOutgoing_without_newline
+        unless string.endsWith("\n"), print("NetworkManager_warn_writeOutgoing_without_newline triggered\n>>> '%'\n" % string)
+        #end
+        
+        pthread_mutex_lock(&this.outgoing_mutex)
+        this.outgoing.append(string)
+        pthread_mutex_unlock(&this.outgoing_mutex)
+        return true
+    }
+    
+    func readIncoming(out string *String) successful {
+        unless string, return false
+
+        pthread_mutex_lock(&this.incoming_mutex)
+        defer pthread_mutex_unlock(&this.incoming_mutex)
+
+        newline long = this.incoming.first('\n'ub)
+        
+        if newline != -1 {
+            *string = this.incoming.sub(0, newline as usize + 1)
+            this.incoming.decapitate(newline as usize + 1)
+            return true
+        }
+
+        return false
+    }
+    
+    func setIsOnline(value bool) {
+        pthread_mutex_lock(&this.is_online_mutex)
+        defer pthread_mutex_unlock(&this.is_online_mutex)
+        this.is_online = value
+    }
+    
+    func getIsOnline bool {
+        pthread_mutex_lock(&this.is_online_mutex)
+        defer pthread_mutex_unlock(&this.is_online_mutex)
+        return this.is_online
+    }
+}

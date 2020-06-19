@@ -1,0 +1,30 @@
+
+import 'main.adept'
+
+enum PhaseKind (SPAWN, ATTACK, BATTLE, DRAW)
+
+struct Phase(kind PhaseKind) {
+    func advance {
+        *this = this.next()
+    }
+    
+    func next Phase {
+        return this.kind == PhaseKind::DRAW ? phase(PhaseKind::SPAWN) : phase(cast PhaseKind(this.kind as int + 1))
+    }
+    
+    func toString String {
+        switch this.kind {
+        case PhaseKind::SPAWN,  return "Spawn Phase"
+        case PhaseKind::ATTACK, return "Attack Phase"
+        case PhaseKind::BATTLE, return "Battle Phase"
+        case PhaseKind::DRAW,   return "Draw Phase"
+        }
+        return "Unknown Game Phase"
+    }
+}
+
+func phase(kind PhaseKind) Phase {
+    phase POD Phase
+    phase.kind = kind
+    return phase
+}

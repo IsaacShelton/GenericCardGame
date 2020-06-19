@@ -1,0 +1,10 @@
+
+import 'main.adept'
+
+struct GameMode (
+    exclusive_heart_mana_bonus bool // When a player loses a heart, only they get an extra mana point
+) {
+    func defaults {
+        this.exclusive_heart_mana_bonus = false
+    }
+}

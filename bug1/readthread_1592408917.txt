@@ -1,0 +1,60 @@
+
+$close
+isaac@spawn 30 on_fire_guy rightof 0
+andy@spawn 31 shield_guy rightof 0
+andy@spawn 32 on_fire_guy rightof 31
+isaac@end
+andy@end
+andy@end
+isaac@end
+isaac@end
+andy@end
+isaac@end
+andy@end
+andy@spawn 33 stick_guy rightof 31
+andy@spawn 34 stick_guy rightof 0
+isaac@spawn 35 on_fire_guy rightof 30
+isaac@end
+andy@end
+andy@end
+isaac@end
+isaac@end
+andy@end
+isaac@end
+andy@end
+andy@spawn 36 shield_guy rightof 33
+andy@spawn 37 stick_guy rightof 31
+isaac@spawn 38 on_fire_guy rightof 35
+isaac@spawn 39 shield_guy rightof 38
+isaac@end
+andy@end
+	1  andy@end
+	2  isaac@end
+	3  isaac@end
+	4  andy@end
+	5  isaac@end
+	6  andy@end
+	7  andy@end
+	8  isaac@end
+	9  isaac@end
+	10 andy@end
+	11 andy@end
+	12 isaac@end
+	13 andy@end
+	14 isaac@end
+	15 andy@end
+	16 isaac@end
+	17 isaac@end
+	18 andy@end
+	19 andy@end
+	20 isaac@end
+	21 andy@end
+	22 isaac@end
+	23 isaac@end
+	24 andy@end
+	25 isaac@end
+	26 andy@end
+	27 isaac@end
+	28 andy@end
+29 isaac@end
+30 andy$leave

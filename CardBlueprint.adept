@@ -1,0 +1,67 @@
+
+import 'main.adept'
+import 'CardUsage.adept'
+
+struct CardBlueprint (
+    name, title, description String,
+    kind CardKind,
+    cost, hp, attack int,
+    offense Offense,
+    defense Defense,
+    attributes <CardEffect> List,
+    ct CardTextures,
+    traits CardTraits
+) {
+    func clone CardBlueprint {
+        blueprint POD CardBlueprint
+        blueprint.name = this.name.clone()
+        blueprint.description = this.description.clone()
+        blueprint.kind = this.kind
+        blueprint.cost = this.cost
+        blueprint.hp = this.hp
+        blueprint.offense = POD this.offense
+        blueprint.defense = POD this.defense
+        blueprint.attack = this.attack
+        blueprint.attributes = this.attributes.clone()
+        blueprint.ct = this.ct
+        blueprint.traits = this.traits
+        return blueprint
+    }
+    
+    func print {
+        print("%" % this.name)
+        print(" title: %" % this.title)
+        print(" description: %" % this.description)
+        print(" kind: %" % toString(this.kind))
+        print(" cost: %" % this.cost)
+        print(" hp: %" % this.hp)
+        print(" attack: %" % this.attack)
+        print(" offense: %" % this.offense.toString())
+        print(" defense: %" % this.defense.toString())
+        print(" attributes:")
+        each CardEffect in this.attributes, print("  % = %" % it.identifier % it.value)
+        print(" textures: %" % (this.ct.portrait != &textures.placeholder))
+        print(" traits: %" % this.traits.toString())
+    }
+}
+
+func addBlueprint(this *<CardBlueprint> List, name, title, description String, kind CardKind, cost, hp, attack int,
+        offense Offense, defense Defense, attributes <CardEffect> List, ct CardTextures, traits CardTraits) successful {
+    
+    unless this.add(), return false
+    
+    blueprint *CardBlueprint = this.items at (this.length - 1)
+    blueprint.name = name.clone()
+    blueprint.title = title.clone()
+    blueprint.description = description.clone()
+    blueprint.kind = kind
+    blueprint.cost = cost
+    blueprint.hp = hp
+    blueprint.attack = attack
+    blueprint.offense = POD offense
+    blueprint.defense = POD defense
+    blueprint.attributes = attributes.clone()
+    blueprint.ct = ct
+    blueprint.traits = traits
+    return true
+}

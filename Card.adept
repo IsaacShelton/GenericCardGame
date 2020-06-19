@@ -1,0 +1,123 @@
+
+import 'main.adept'
+import 'Offense.adept'
+import 'Defense.adept'
+
+import 'CardTraits.adept'
+import 'CardBlueprint.adept'
+import 'CardEffect.adept'
+import 'CardKind.adept'
+import 'CardPosition.adept'
+
+alias CardInstanceID = usize
+alias CardNetworkID  = usize
+
+struct CardInstance (
+    instance_id CardInstanceID,
+    network_id CardNetworkID,
+    name, title, description String,
+    kind CardKind,
+    cost, hp, max_hp, attack int,
+    offense Offense,
+    defense Defense,
+    attributes <CardEffect> List,
+    modifiers <CardEffect> List,
+    ct CardTextures,
+    traits CardTraits
+) {
+    func clone CardInstance {
+        instance POD CardInstance
+        instance.instance_id = this.instance_id
+        instance.network_id = this.network_id
+        instance.name = this.name.clone()
+        instance.title = this.title.clone()
+        instance.description = this.description.clone()
+        instance.kind = this.kind
+        instance.cost = this.cost
+        instance.hp = this.hp
+        instance.max_hp = this.max_hp
+        instance.attack = this.attack
+        instance.offense = POD this.offense
+        instance.defense = POD this.defense
+        instance.attributes = this.attributes.clone()
+        instance.modifiers = this.modifiers.clone()
+        instance.ct = this.ct
+        instance.traits = this.traits
+        return instance
+    }
+    
+    func __assign__(other POD CardInstance) {
+        this.instance_id = other.instance_id
+        this.network_id = other.network_id
+        this.name = other.name.clone()
+        this.title = other.title.clone()
+        this.description = other.description.clone()
+        this.kind = other.kind
+        this.cost = other.cost
+        this.hp = other.hp
+        this.max_hp = other.max_hp
+        this.attack = other.attack
+        this.offense = POD other.offense
+        this.defense = POD other.defense
+        this.attributes = other.attributes.clone()
+        this.modifiers = other.modifiers.clone()
+        this.ct = other.ct
+        this.traits = other.traits
+    }
+    
+    func getStandardCardTexture CaptTexture {
+        switch this.kind {
+        case CardKind::CREATURE, return textures.standard_creature_card
+        case CardKind::SPELL,    return textures.standard_spell_card
+        case CardKind::STAT,     return textures.standard_stat_card
+        }
+        return textures.standard_card
+    }
+    
+    func print {
+        print("% instance_id % network_id %" % this.name % this.instance_id % this.network_id)
+        print(" title: %" % this.title)
+        print(" description: %" % this.description)
+        print(" kind: %" % toString(this.kind))
+        print(" cost: %" % this.cost)
+        print(" hp: %/%" % this.hp % this.max_hp)
+        print(" attack: %" % this.attack)
+        print(" offense: %" % this.offense.toString())
+        print(" defense: %" % this.defense.toString())
+        print(" attributes:")
+        each CardEffect in this.attributes, print("  % = %" % it.identifier % it.value)
+        print(" textures: %" % (this.ct.portrait != &textures.placeholder))
+        print(" traits: %" % this.traits.toString())
+    }
+    
+    func assignNetworkID(network_id CardNetworkID) {
+        this.network_id = network_id
+    }
+    
+    func isDead bool = this.hp <= 0
+}
+
+func cardInstance(blueprint *CardBlueprint) CardInstance {
+    instance POD CardInstance
+    instance.instance_id = gamedata.next_instance_id++
+    instance.name = blueprint.name.clone()
+    instance.title = blueprint.title.clone()
+    instance.description = blueprint.description.clone()
+    instance.kind = blueprint.kind
+    instance.cost = blueprint.cost
+    instance.hp = blueprint.hp
+    instance.max_hp = blueprint.hp
+    instance.attack = blueprint.attack
+    instance.offense = POD blueprint.offense
+    instance.defense = POD blueprint.defense
+    instance.attributes = blueprint.attributes.clone()
+    // (instance.modifiers is left blank)
+    instance.ct = blueprint.ct
+    instance.traits = blueprint.traits
+    return instance
+}
+
+func contains(this *<CardNetworkID> List, network_id CardNetworkID) bool {
+    each CardNetworkID in static *this, if it == network_id, return true
+    return false
+}

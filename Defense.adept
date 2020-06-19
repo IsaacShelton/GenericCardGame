@@ -1,0 +1,35 @@
+
+enum DefenseKind (NONE, FLESH, SHIELDED, SPECTRAL)
+
+struct Defense (kind DefenseKind) {
+    func toString String {
+        switch this.kind {
+        case DefenseKind::FLESH,    return "flesh"
+        case DefenseKind::SHIELDED, return "shielded"
+        case DefenseKind::SPECTRAL, return "spectral"
+        }
+        return "none"
+    }
+    
+    func getTexture *CaptTexture {
+        switch this.kind {
+        case DefenseKind::FLESH,    return &textures.flesh
+        case DefenseKind::SHIELDED, return &textures.shielded
+        case DefenseKind::SPECTRAL, return &textures.spectral
+        }
+        return null
+    }
+}
+
+func defense(kind DefenseKind) Defense {
+    defense POD Defense
+    defense.kind = kind
+    return defense
+}
+
+func defense(kind_name String) Defense {
+    if      kind_name == "flesh",    return defense(DefenseKind::FLESH)
+    else if kind_name == "shielded", return defense(DefenseKind::SHIELDED)
+    else if kind_name == "spectral", return defense(DefenseKind::SPECTRAL)
+    return defense(DefenseKind::NONE)
+}

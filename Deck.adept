@@ -1,0 +1,216 @@
+
+import 'main.adept'
+
+import 'Card.adept'
+import 'parse.adept'
+
+DECK_FILENAME == "deck.txt"
+
+struct Deck (blueprints <CardBlueprint> List) {
+    func load successful {
+        srand(time(null))
+        this.blueprints.clear()
+        
+        filename String = where() + "assets/" + DECK_FILENAME
+        filename_cstr *ubyte = filename.cstr()
+        defer delete filename_cstr
+        
+        f *FILE = fopen(filename_cstr, 'r')
+        unless f, return false
+        defer fclose(f)
+        
+        buffer_size usize = 1024
+        buffer *ubyte = new ubyte * 1024
+        defer delete buffer
+        
+        entry String
+        details <String> List
+        
+        while fgets(buffer, buffer_size, f) != null {
+            // Strip off newline if it's at the end of the buffer
+            if buffer[strlen(buffer) - 1] == '\n'ub, buffer[strlen(buffer) - 1] = 0x00
+            
+            if buffer[0] == ' 'ub {
+                details.add(stringConstant(buffer).trimmed())
+            } else {
+                unless entry == "", this.loadCard(entry, details)
+                entry = string(buffer)
+                entry.forceIdentifierLike()
+                details.clear()
+            }
+        }
+        
+        if !entry.empty() && !this.loadCard(entry, details), return false
+        return true
+    }
+    
+    func loadCard(name String, details <String> List) successful {
+        title String = name
+        description String = ""
+        kind CardKind = CardKind::CREATURE
+        cost int = 0
+        hp int = 0
+        attack int = 0
+        offense_type Offense
+        defense_type Defense
+        attributes <CardEffect> List
+        ct CardTextures
+        traits CardTraits
+        traits.defaults()
+        
+        key StringView
+        each String in details {
+            if isMarkerDetail(it, &key) {
+                if      key == "creature",              kind = CardKind::CREATURE
+                else if key == "spell",                 kind = CardKind::SPELL
+                else if key == "stat",                  kind = CardKind::STAT
+                else if key == "developer",             traits.developer = true
+                else if key == "on-fire",               traits.on_fire = true
+                else if key == "fire-resistant",        traits.fire_resistant = true
+                else if key == "invulnerable-to-blunt", traits.invulnerable_to_blunt = true
+                else {
+                    print("WARNING: Unrecognized card marker trait '%'" % key)
+                }
+            } else if isStringDetail(it, "title", def new_title StringView) {
+                // Cut off anything after the second line
+                if new_title.length > 26, new_title = new_title.span(0, 26)
+                
+                // Attempt to seperate into two lines if needed
+                if new_title.length > 13 {
+                    middle long = cast long (new_title.length / 2)
+                    space_closest_to_middle long = -1
+                    
+                    each ubyte in static new_title, if it == ' 'ub && (space_closest_to_middle == -1 || labs(idx as long - middle) < labs(space_closest_to_middle - middle)),
+                        space_closest_to_middle = idx as long
+                    
+                    if space_closest_to_middle != -1 {
+                        new_title.make()
+                        new_title.array[space_closest_to_middle as usize] = '\n'ub
+                    } else {
+                        new_title = new_title.span(0, 13)
+                    }
+                }
+                
+                title = new_title.clone()
+            } else if isStringDetail(it, "description", def new_description StringView) {
+                // Wrap description into multiple lines (16 characters max per line) (6 lines max)
+                
+                max_characters usize = 16 * 6
+                if new_description.length > max_characters, new_description = new_description.span(0, max_characters)
+                
+                new_description.make()
+                since_last_newline long = 0
+                
+                each ubyte in static new_description {
+                    since_last_newline++
+                    
+                    if since_last_newline > 16 {
+                        range_since String = new_description.range(idx - (since_last_newline - 1), idx + 1)
+                        last_space long = range_since.last(' 'ub)
+                        
+                        // Overwrite best space character if available
+                        if last_space != -1 {
+                            new_description.array[idx as long - (since_last_newline - 1) + last_space] = '\n'ub
+                            since_last_newline = (range_since.length as long - 1) - last_space
+                        } else {
+                            // Overwrite current character with newline if going over
+                            new_description.array[idx] = '\n'ub
+                            since_last_newline = 0
+                        }
+                    }
+                }
+                
+                description = new_description.commit()
+            } else if isStringDetail(it, "texture", def new_texture StringView) {
+                ct = cardTextures(gamedata.assets_folder + "cards/" + new_texture + "/")
+            } else if isStringDetail(it, "offense", def new_offense StringView) {
+                offense_type = offense(new_offense)
+            } else if isStringDetail(it, "defense", def new_defense StringView) {
+                defense_type = defense(new_defense)
+            } else if isStringDetail(it, "usage", def new_usage StringView) {
+                traits.usage = cardUsage(new_usage)
+            } else if isIntDetail(it, &key, undef int_value int) {
+                dest *int = null
+                if      key == "cost",               dest = &cost
+                else if key == "hp",                 dest = &hp
+                else if key == "attack",             dest = &attack
+                else if key == "battlecry-adjacent", dest = &traits.battlecry_adjacent
+                else if key == "shield",             dest = &traits.shield
+                else if key == "spreads-fire",       dest = &traits.spreads_fire
+                else if key == "applies-shield",     dest = &traits.applies_shield; traits.requires_target = true
+                else if key == "draw-immediately",   dest = &traits.draw_immediately
+                
+                if dest {
+                    *dest = int_value
+                } else {
+                    print("WARNING: Unrecognized card integer trait '%'" % key)
+                }
+            } else {
+                print("WARNING: Unrecognized card trait '%'" % it)
+            }
+        }
+        
+        // Default to texture named <entry> except with dashes replaced with underscores
+        if ct.portrait == null, ct = cardTextures(gamedata.assets_folder + "cards/" + name + "/")
+        
+        // Force valid texture if something went wrong
+        ct.forceValid()
+        
+        unless this.blueprints.addBlueprint(name, title, description, kind, cost, hp, attack, offense_type, defense_type, attributes, ct, traits),
+            return false
+        return true
+    }
+    
+    func randomCard CardInstance {
+        if this.blueprints.length == 0 {
+            null_card_instance POD CardInstance
+            printf('ERROR: Deck.randomCard() has no blueprints to choose from\n')
+            return null_card_instance
+        }
+        
+        return cardInstance(this.blueprints.getPointer(rand() % this.blueprints.length))
+    }
+    
+    func getCardBlueprint(name String) *CardBlueprint {
+        each CardBlueprint in this.blueprints, if it.name == name, return &it
+        return null
+    }
+    
+    func print {
+        each CardBlueprint in this.blueprints, it.print()
+    }
+}
+
+func isMarkerDetail(detail String, out key *StringView) bool {
+    if detail.count(' 'ub) != 0, return false
+    unless detail.isNameLike(), return false
+    
+    *key = detail.reference()
+    return true
+}
+
+func isIntDetail(detail String, out key *StringView, out value *int) bool {
+    if detail.count(' 'ub) != 1, return false
+    
+    space long = detail.first(' 'ub)
+    before StringView = detail.range(0, space)
+    after StringView = detail.range(space + 1, detail.length)
+    
+    unless after.isIntegerLike(), return false
+    
+    *key = before
+    *value = after.toInt()
+    return true
+}
+
+func isStringDetail(detail String, key String, out value *StringView) bool {
+    if detail.count(' 'ub) == 0, return false
+    
+    space long = detail.first(' 'ub)
+    before StringView = detail.range(0, space)
+    after StringView = detail.range(space + 1, detail.length)
+    
+    unless before == key, return false
+    *value = after
+    return true
+}

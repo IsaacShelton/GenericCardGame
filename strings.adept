@@ -1,0 +1,21 @@
+
+import 'main.adept'
+
+func clone(this *<String> List) <String> List {
+    list <String> List
+    each String in *this, list.add(it.clone())
+    return list.commit()
+}
+
+func dashesToUnderscores(this *String) String {
+    string String = this.clone()
+    each ubyte in static string, if it == '-'ub, it = '_'ub
+    return string.commit()
+}
+
+func forceIdentifierLike(this *String) {
+    each ubyte in *this {
+        unless (it >= 'A'ub && it <= 'Z'ub) || (it >= 'a'ub || it <= 'z'ub) || (it >= '0'ub || it <= '9'ub) || it == '_'ub || it == '-'ub,
+            this.remove(idx--); continue
+    }
+}

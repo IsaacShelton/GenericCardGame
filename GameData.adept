@@ -1,0 +1,191 @@
+
+import 'MainMenu.adept'
+import 'OnlineMenu.adept'
+import 'CreateMenu.adept'
+import 'ChooseNameMenu.adept'
+import 'LobbyMenu.adept'
+import 'CardGame.adept'
+import 'VictoryMenu.adept'
+import 'DefeatMenu.adept'
+import 'FPSMonitor.adept'
+import 'GameMode.adept'
+
+struct GameData (
+    scene *Scene,
+    scenes <Scene> List,
+    assets_folder String,
+    listings <RoomListing> List,
+    manager NetworkManager,
+    interpreter NetworkInterpreter,
+    error_message String,
+    player_name String,
+    is_in_room bool,
+    room_name String,
+    next_instance_id CardInstanceID,
+    deck Deck,
+    fps_monitor FPSMonitor,
+    player_names <String> List,
+    gamemode GameMode
+) {
+    func init {
+        this.scene = null
+        this.scenes.addScene(1, 'mainmenu', new MainMenu)
+        this.scenes.addScene(2, 'onlinemenu', new OnlineMenu)
+        this.scenes.addScene(3, 'createmenu', new CreateMenu)
+        this.scenes.addScene(4, 'choosename', new ChooseNameMenu)
+        this.scenes.addScene(5, 'lobby', new LobbyMenu)
+        this.scenes.addScene(6, 'cardgame', new CardGame)
+        this.scenes.addScene(7, 'victory', new VictoryMenu)
+        this.scenes.addScene(8, 'defeat', new DefeatMenu)
+        this.assets_folder = where() + "assets/"
+        this.loadPlayerName()
+        this.gamemode.defaults()
+        
+        unless this.deck.load() {
+            print("Failed to load deck")
+            return
+        }
+        
+        this.next_instance_id = 1
+        this.manager.initialize(1024)
+        this.setScene('mainmenu')
+        
+        unless this.manager.connect("localhost", 9999, &this.error_message) {
+            print("Failed to connect to server")
+            print(this.error_message)
+            return
+        }
+        
+        unless this.manager.spawnThreads(false, &this.error_message) {
+            print("Failed to spawn threads")
+            print(this.error_message)
+            return
+        }
+        
+        this.interpreter.start(&this.manager)
+        
+        if this.player_name == "" {
+            // Make player to choose a name before going to mainmenu
+            this.setScene('choosename')
+        } else {
+            this.manager.writeOutgoing("$name " + this.player_name + "\n")
+        }
+    }
+    
+    func exit {
+        if this.is_in_room, this.manager.writeOutgoing("$leave\n")
+        this.manager.writeOutgoing("\n")
+        
+        this.interpreter.stop()
+        
+        unless this.manager.stop(true, &this.error_message) {
+            print("Failed to stop network manager")
+            print(this.error_message)
+            return
+        }
+    }
+    
+    func setScene(id int){
+        // Lazy search to find correct scene
+        each Scene in this.scenes, if it.id == id {
+            if this.scene, this.scene.callExit()
+            this.scene = &it
+            this.scene.callEnter()
+        }
+    }
+    
+    func setScene(name *ubyte){
+        // Lazy search to find correct scene
+        each Scene in this.scenes, if strcmp(it.name, name) == 0 {
+            if this.scene, this.scene.callExit()
+            this.scene = &it
+            this.scene.callEnter()
+        }
+    }
+    
+    func step {
+        #if monitor_fps
+        this.fps_monitor.step()
+            
+        if this.fps_monitor.updatedFPS(undef fps int) {
+            print("FPS : %" % fps)
+        }
+        #end
+        
+        if this.scene, this.scene.callStep()
+    }
+    
+    func click(x, y float, button int) {
+        if this.scene, this.scene.callClick(x, y, button)
+    }
+    
+    func release(x, y float, button int){
+        if this.scene, this.scene.callRelease(x, y, button)
+    }
+    
+    func key(key, scancode, action, mods int) {
+        if this.scene, this.scene.callKey(key, scancode, action, mods)
+    }
+    
+    func char(c uint) {
+        if this.scene, this.scene.callChar(c)
+    }
+    
+    func draw {
+        if this.scene, this.scene.callDraw()
+    }
+    
+    func loadPlayerName {
+        #if ignore_NAME_txt
+            this.player_name = ""
+            return
+        #end
+        
+        filename String = where() + "NAME.txt"
+        filename_cstr *ubyte = filename.cstr()
+        defer delete filename_cstr
+        
+        this.player_name = ""
+        
+        f *FILE = fopen(filename_cstr, 'r')
+        unless f, return
+        
+        buffer_length usize = 256
+        buffer *ubyte = new ubyte * buffer_length
+        defer delete buffer
+        unless fgets(buffer, buffer_length, f), fclose(f); return
+        
+        this.player_name = stringConstant(buffer).trimmed()
+        fclose(f)
+    }
+    
+    func storePlayerName(name String) successful {
+        #if ignore_NAME_txt
+            return true
+        #end
+        
+        filename String = where() + "NAME.txt"
+        filename_cstr *ubyte = filename.cstr()
+        defer delete filename_cstr
+        
+        name.trim()
+        name_cstr *ubyte = name.cstr()
+        defer delete name_cstr
+        
+        f *FILE = fopen(filename_cstr, 'w')
+        unless f, return false
+        
+        fputs(name_cstr, f)
+        fclose(f)
+        return true
+    }
+    
+    func leaveRoom {
+        if this.is_in_room {
+            this.manager.writeOutgoing("$leave\n")
+            this.is_in_room = false
+        }
+    }
+}
+
+gamedata GameData

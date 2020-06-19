@@ -1,0 +1,130 @@
+
+import 'main.adept'
+
+struct OnlineMenu (
+    is_back_button_hovered, is_create_button_hovered bool,
+    listing_hovered int // 0 == none
+) {
+    func setup {}
+    
+    func __defer__ {
+        // NOTE: Due to a compiler issue, we have to force a __defer__ method to
+        // be automatically generated here
+    }
+    
+    func enter {
+        gamedata.interpreter.setMonitorListings(true)
+    }
+    
+    func exit {
+        gamedata.interpreter.setMonitorListings(false)
+    }
+    
+    func step {
+        if gamedata.interpreter.updatedListings(def listing_names <String> List) {
+            gamedata.listings.clear()
+            each String in listing_names, gamedata.listings.add(roomListing(it))
+        }
+        
+        captMouseViewPosition(undef mouseX float, undef mouseY float)
+        this.calculateWhetherBackButtonIsHovered(mouseX, mouseY)
+        this.calculateWhetherCreateButtonIsHovered(mouseX, mouseY)
+        this.calculateWhetherListingIsHovered(mouseX, mouseY)
+    }
+    
+    func click(x, y float, button int){
+        unless button == 1, return
+        
+        this.calculateWhetherBackButtonIsHovered(x, y)
+        if this.is_back_button_hovered {
+            gamedata.setScene('mainmenu')
+            return
+        }
+        
+        this.calculateWhetherCreateButtonIsHovered(x, y)
+        if this.is_create_button_hovered {
+            if gamedata.manager.getIsOnline(), gamedata.setScene('createmenu')
+            return
+        }
+        
+        if this.calculateWhetherListingIsHovered(x, y) {
+            this.joinRoom(gamedata.listings.getPointer(this.listing_hovered - 1).name)
+        }
+    }
+    
+    func char(c uint) {}
+    func key(key, scancode, action, mods int) {}
+    
+    func draw {
+        drawButton("back", this, func &getBackButtonPosition(*OnlineMenu, *float, *float), this.is_back_button_hovered)
+        drawButton("create", this, func &getCreateButtonPosition(*OnlineMenu, *float, *float), this.is_create_button_hovered)
+        
+        notice_message String = gamedata.manager.getIsOnline() ? (gamedata.listings.length == 0 ? "No Rooms" : "") : "You are Offline"
+        
+        unless notice_message.empty() {
+            drawTextCentered(notice_message)
+            return
+        }
+        
+        each RoomListing in gamedata.listings {
+            room_name String = it.name.length > 10 ? it.name.sub(0, 9) + "~" : it.name
+            this.getListingButtonPosition(idx + 1, undef listing_x float, undef listing_y float)
+            
+            drawButton(room_name, listing_x, listing_y, this.listing_hovered == idx + 1)
+        }
+    }
+    
+    func getListingButtonPosition(id usize, out x, y *float) {
+        // NOTE: 'id' starts at 1
+        text_scale float = 14.0f
+        total_height float = gamedata.listings.length as float * MAIN_MENU_BUTTON_HEIGHT + (gamedata.listings.length - 1) as float * 16.0f
+        y_offset float = captViewHeight() / 2.0f - total_height / 2.0f + (MAIN_MENU_BUTTON_HEIGHT + 16.0f) * (id - 1) as float
+        *x = captViewWidth() / 2.0f - MAIN_MENU_BUTTON_WIDTH / 2.0f
+        *y = y_offset
+    }
+    
+    func getBackButtonPosition(out x, y *float){
+        *x = 16.0f
+        *y = captViewHeight() - 16.0f - MAIN_MENU_BUTTON_HEIGHT
+    }
+    
+    func getCreateButtonPosition(out x, y *float){
+        *x = 16.0f
+        *y = captViewHeight() - 16.0f * 2.0f - MAIN_MENU_BUTTON_HEIGHT * 2.0f
+    }
+    
+    func calculateWhetherBackButtonIsHovered(mouseX, mouseY float) bool {
+        this.is_back_button_hovered = isButtonHovered(this, func &getBackButtonPosition(*OnlineMenu, *float, *float), mouseX, mouseY)
+        return this.is_back_button_hovered
+    }
+    
+    func calculateWhetherCreateButtonIsHovered(mouseX, mouseY float) bool {
+        this.is_create_button_hovered = isButtonHovered(this, func &getCreateButtonPosition(*OnlineMenu, *float, *float), mouseX, mouseY)
+        return this.is_create_button_hovered
+    }
+    
+    func calculateWhetherListingIsHovered(mouseX, mouseY float) bool {
+        this.listing_hovered = 0
+        
+        each RoomListing in gamedata.listings {
+            this.getListingButtonPosition(idx + 1, undef x float, undef y float)
+            
+            if isButtonHovered(x, y, mouseX, mouseY) {
+                this.listing_hovered = idx + 1
+                return true
+            }
+        }
+        
+        return false
+    }
+    
+    func joinRoom(name String) {
+        gamedata.interpreter.clearRoomMovements()
+        gamedata.interpreter.ignoreNextJoinMessageFrom(gamedata.player_name)
+        gamedata.manager.writeOutgoing("$join " + name + "\n")
+        gamedata.manager.writeOutgoing("$lobby\n")
+        gamedata.room_name = name
+        gamedata.is_in_room = true
+        gamedata.setScene('lobby')
+    }
+}

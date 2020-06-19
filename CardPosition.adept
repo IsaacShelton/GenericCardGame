@@ -1,0 +1,18 @@
+
+import 'main.adept'
+
+struct CardPosition (x, y, resting_y, scale float) {
+    func intersecting(x, y float) bool {
+        return x >= this.x - this.scale * CARD_WIDTH / 2.0f && y >= this.y - this.scale * CARD_HEIGHT / 2.0f &&
+            x <= this.x + this.scale * CARD_WIDTH / 2.0f && y <= this.y + this.scale * CARD_HEIGHT / 2.0f
+    }
+}
+
+func cardPosition(x, y, resting_y, scale float) CardPosition {
+    cpos POD CardPosition
+    cpos.x = x
+    cpos.y = y
+    cpos.resting_y = resting_y
+    cpos.scale = scale
+    return cpos
+}

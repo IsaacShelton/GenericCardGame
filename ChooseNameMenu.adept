@@ -1,0 +1,80 @@
+
+import 'main.adept'
+
+struct ChooseNameMenu (
+    name String,
+    is_ok_button_hovered bool
+) {
+    func setup {}
+    
+    func __defer__ {
+        // NOTE: Due to a compiler issue, we have to force a __defer__ method to
+        // be automatically generated here
+    }
+    
+    func enter {
+        this.name = ""
+    }
+    
+    func exit {}
+    
+    func step {
+        captMouseViewPosition(undef mouseX float, undef mouseY float)
+        this.calculateWhetherOkButtonIsHovered(mouseX, mouseY)
+    }
+    
+    func click(x, y float, button int){
+        unless button == 1, return
+        
+        this.calculateWhetherOkButtonIsHovered(x, y)
+        if this.is_ok_button_hovered {
+            this.finalize()
+            return
+        }
+    }
+    
+    func char(character uint) {
+        c ubyte = character as ubyte
+        if (c >= 'A'ub && c <= 'Z'ub) or (c >= 'a'ub && c <= 'z'ub) or (c >= '0'ub && c <= '9'ub) or (c == '-'ub or c == '_'ub),
+            this.name = this.name + c
+    }
+    
+    func key(key, scancode, action, mods int) {
+        if      key == GLFW_KEY_BACKSPACE && action == GLFW_PRESS || action == GLFW_REPEAT, this.name.reduce(1)
+        else if key == GLFW_KEY_ENTER && action == GLFW_PRESS, this.finalize()
+    }
+    
+    func draw {
+        this.getOkButtonPosition(undef ok_button_x float, undef ok_button_y float)
+        drawButton("ok", ok_button_x, ok_button_y, this.is_ok_button_hovered)
+        
+        stride float = 14.0f / 7.0f * 6.0f
+        
+        notice_message String = ""
+        unless gamedata.manager.getIsOnline(), notice_message = "You are Offline"
+        else notice_message = "Enter your name: " + this.name
+        
+        unless notice_message.empty() {
+            drawTextCentered(notice_message)
+            return
+        }
+    }
+    
+    func getOkButtonPosition(out x, y *float){
+        *x = 16.0f
+        *y = captViewHeight() - 16.0f - MAIN_MENU_BUTTON_HEIGHT
+    }
+    
+    func calculateWhetherOkButtonIsHovered(mouseX, mouseY float) {
+        this.getOkButtonPosition(undef x float, undef y float)
+        this.is_ok_button_hovered = x < mouseX && y < mouseY && mouseX < x + MAIN_MENU_BUTTON_WIDTH && mouseY < y + MAIN_MENU_BUTTON_HEIGHT
+    }
+    
+    func finalize {
+        if this.name.empty(), return
+        gamedata.player_name = this.name
+        gamedata.storePlayerName(this.name)
+        gamedata.manager.writeOutgoing("$name " + this.name + "\n")
+        gamedata.setScene('mainmenu')
+    }
+}

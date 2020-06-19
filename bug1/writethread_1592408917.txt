@@ -1,0 +1,35 @@
+$list
+$name isaac
+$list
+$list
+$create asdf
+isaac@spawn ~ on_fire_guy rightof 0
+isaac@end
+isaac@end
+isaac@end
+isaac@end
+isaac@spawn ~ on_fire_guy rightof 30
+isaac@end
+isaac@end
+isaac@end
+isaac@end
+isaac@spawn ~ on_fire_guy rightof 35
+isaac@spawn ~ shield_guy rightof 38
+isaac@end
+isaac@end
+isaac@end
+isaac@end
+isaac@end
+isaac@end
+isaac@end
+isaac@end
+isaac@end
+isaac@end
+isaac@end
+isaac@end
+isaac@end
+isaac@end
+isaac@end
+isaac@end
+$leave
+

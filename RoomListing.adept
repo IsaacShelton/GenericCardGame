@@ -1,0 +1,10 @@
+
+import 'main.adept'
+
+struct RoomListing (name String)
+
+func roomListing(name String) RoomListing {
+    rl POD RoomListing
+    rl.name = name.clone()
+    return rl
+}

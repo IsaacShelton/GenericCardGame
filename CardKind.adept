@@ -1,0 +1,14 @@
+
+import 'main.adept'
+
+enum CardKind (CREATURE, SPELL, STAT)
+
+func toString(kind CardKind) String {
+    switch kind {
+    case CardKind::CREATURE, return "Creature"
+    case CardKind::SPELL, return "Spell"
+    case CardKind::STAT, return "Stat"
+    }
+    printf('ERROR: toString(CardKind): Unknown Card Kind\n')
+    return "Unknown Card Kind"
+}

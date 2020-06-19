@@ -1,0 +1,113 @@
+
+import 'main.adept'
+import 'RoomMovement.adept'
+
+struct LobbyMenu (
+    is_leave_button_hovered, is_start_button_hovered bool,
+    listing_hovered int, // 0 == none
+    members <String> List
+) {
+    func setup {}
+    
+    func __defer__ {
+        // NOTE: Due to a compiler issue, we have to force a __defer__ method to
+        // be automatically generated here
+    }
+    
+    func enter {
+        this.members.clear()
+    }
+    
+    func exit {}
+    
+    func step {
+        if gamedata.interpreter.wasRoomClosed() {
+            gamedata.player_names = this.members.commit()
+            this.members.clear()
+            
+            gamedata.setScene('cardgame')
+            return
+        }
+        
+        if gamedata.interpreter.updatedRoomMovements(def movements <RoomMovement> List) {
+            each RoomMovement in movements {
+                if it.isEnter, this.members.add(it.name.commit())
+                else each member String in this.members, if member == it.name, this.members.remove(idx); break
+            }
+        }
+        
+        captMouseViewPosition(undef mouseX float, undef mouseY float)
+        this.calculateWhetherLeaveButtonIsHovered(mouseX, mouseY)
+        this.calculateWhetherStartButtonIsHovered(mouseX, mouseY)
+    }
+    
+    func click(x, y float, button int){
+        unless button == 1, return
+        
+        if this.calculateWhetherLeaveButtonIsHovered(x, y) {
+            gamedata.leaveRoom()
+            gamedata.setScene('onlinemenu')
+            return
+        }
+        
+        if this.calculateWhetherStartButtonIsHovered(x, y) && this.members.length == 2 {
+            if gamedata.manager.getIsOnline(), gamedata.manager.writeOutgoing("$close\n")
+            return
+        }
+    }
+    
+    func char(c uint) {}
+    func key(key, scancode, action, mods int) {}
+    
+    func draw {
+        drawButton("leave", this, func &getLeaveButtonPosition(*LobbyMenu, *float, *float), this.is_leave_button_hovered)
+        
+        if this.members.length == 2,
+            drawButton("start", this, func &getStartButtonPosition(*LobbyMenu, *float, *float), this.is_start_button_hovered)
+        
+        this.drawRoomName()
+        
+        notice_message String = gamedata.manager.getIsOnline() ? "" : "You are Offline"
+        
+        unless notice_message.empty() {
+            drawTextCentered(notice_message)
+            return
+        }
+        
+        if this.members.length != 0, each String in this.members {
+            y_offset float = 0.0f - this.members.length as float * 32.0f / 2.0f + idx as float * 32.0f
+            drawTextCentered(it, captViewWidth() / 2.0f, captViewHeight() / 2.0f + y_offset)
+        } else {
+            drawTextCentered("...")
+        }
+    }
+    
+    func drawRoomName {
+        room_name String = gamedata.room_name.length > 10 ? gamedata.room_name.sub(0, 9) + "~" : gamedata.room_name
+        
+        x float = 16.0f
+        y float = captViewHeight() - 16.0f * 3.0f - MAIN_MENU_BUTTON_HEIGHT * 3.0f
+        
+        drawTextCentered(room_name, x + MAIN_MENU_BUTTON_WIDTH / 2.0f, y + MAIN_MENU_BUTTON_HEIGHT / 2.0f)
+    }
+    
+    func getLeaveButtonPosition(out x, y *float){
+        *x = 16.0f
+        *y = captViewHeight() - 16.0f - MAIN_MENU_BUTTON_HEIGHT
+    }
+    
+    func getStartButtonPosition(out x, y *float){
+        *x = 16.0f
+        *y = captViewHeight() - 16.0f * 2.0f - MAIN_MENU_BUTTON_HEIGHT * 2.0f
+    }
+    
+    func calculateWhetherLeaveButtonIsHovered(mouseX, mouseY float) bool {
+        this.is_leave_button_hovered = isButtonHovered(this, func &getLeaveButtonPosition(*LobbyMenu, *float, *float), mouseX, mouseY)
+        return this.is_leave_button_hovered
+    }
+    
+    func calculateWhetherStartButtonIsHovered(mouseX, mouseY float) bool {
+        this.is_start_button_hovered = isButtonHovered(this, func &getStartButtonPosition(*LobbyMenu, *float, *float), mouseX, mouseY)
+        return this.is_start_button_hovered
+    }
+}

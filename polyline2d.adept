@@ -1,0 +1,332 @@
+
+import 'sys/cmath.adept'
+
+struct Vec2 (x, y float)
+
+func vec2(x, y float) Vec2 {
+    v Vec2 = undef
+    v.x = x
+    v.y = y
+    return v
+}
+
+func __equals__(a, b Vec2) bool {
+    return a.x == b.x && a.y == b.y
+}
+
+func multiply(a, b Vec2) Vec2 {
+    return vec2(a.x * b.x, a.y * b.y)
+}
+
+func multiply(a Vec2, factor float) Vec2 {
+    return vec2(a.x * factor, a.y * factor)
+}
+
+func divide(a Vec2, factor float) Vec2 {
+    return vec2(a.x / factor, a.y / factor)
+}
+
+func add(a, b Vec2) Vec2 {
+    return vec2(a.x + b.x, a.y + b.y)
+}
+
+func subtract(a, b Vec2) Vec2 {
+    return vec2(a.x - b.x, a.y - b.y)
+}
+
+func magnitude(a Vec2) float {
+    return sqrtf(a.x * a.x + a.y * a.y)
+}
+
+func withLength(a Vec2, len float) Vec2 {
+    mag float = magnitude(a)
+    factor float = mag / len
+    return divide(a, factor)
+}
+
+func normalized(a Vec2) Vec2 {
+    return withLength(a, 1.0f)
+}
+
+func dot(a, b Vec2) float {
+    return a.x * b.x + a.y * b.y
+}
+
+func cross(a, b Vec2) float {
+    return a.x * b.y - a.y * b.x
+}
+
+func angle(a, b Vec2) float {
+    return acosf(dot(a, b) / (magnitude(a) * magnitude(b)))
+}
+
+
+
+struct LineSegment (a, b Vec2)
+
+func lineSegment(a, b Vec2) LineSegment {
+    segment LineSegment = undef
+    segment.a = a
+    segment.b = b
+    return segment
+}
+
+func __add__(segment LineSegment, v Vec2) LineSegment {
+    return lineSegment(add(segment.a, v), add(segment.b, v))
+}
+
+func __subtract__(segment LineSegment, v Vec2) LineSegment {
+    return lineSegment(subtract(segment.a, v), subtract(segment.b, v))
+}
+
+func normal(this *LineSegment) Vec2 {
+    dir Vec2 = this.direction(true)
+    return vec2(0.0f - dir.y, dir.x)
+}
+
+func direction(this *LineSegment, normalize bool) Vec2 {
+    vec Vec2 = subtract(this.b, this.a)
+    return normalize ? normalized(vec) : vec
+}
+
+func intersection(a, b LineSegment, infinite_lines bool, out point *Vec2) successful {
+    r Vec2 = a.direction(false)
+    s Vec2 = b.direction(false)
+    
+    origin_distance Vec2 = subtract(b.a, a.a)
+    
+    u_numerator float = cross(origin_distance, r)
+    denominator float = cross(r, s)
+    
+    if fabs(denominator) < 0.0001f, return false
+    
+    u float = u_numerator / denominator
+    t float = cross(origin_distance, s) / denominator
+    
+    if !infinite_lines && (t < 0 || t > 1 || u < 0 || u > 1), return false
+    
+    if point, *point = add(a.a, multiply(r, t))
+    return true
+}
+
+
+
+enum JointStyle (MITER, BEVEL, ROUND)
+enum EndCapStyle (BUTT, SQUARE, ROUND, JOINT)
+
+func Polyline2D_create(points <Vec2> List, thickness float, joint_style JointStyle, end_cap_style EndCapStyle, allow_overlap bool) <Vec2> List {
+    vertices <Vec2> List
+    Polyline2D_create(&vertices, points, thickness, joint_style, end_cap_style, allow_overlap)
+    return vertices.commit()
+}
+
+func Polyline2D_create(out vertices *<Vec2> List, points <Vec2> List, thickness float, joint_style JointStyle, end_cap_style EndCapStyle, allow_overlap bool) {
+    thickness /= 2.0f
+    
+    segments <PolySegment> List
+    
+    repeat points.length - 1 {
+        p1 Vec2 = points.get(idx)
+        p2 Vec2 = points.get(idx + 1)
+        
+        unless __equals__(p1, p2) {
+            segments.add(polySegment(lineSegment(p1, p2), thickness))
+        }
+    }
+    
+    if end_cap_style == EndCapStyle::JOINT {
+        p1 Vec2 = points.get(points.length - 1)
+        p2 Vec2 = points.get(0)
+        
+        unless __equals__(p1, p2) {
+            segments.add(polySegment(lineSegment(p1, p2), thickness))
+        }
+    }
+    
+    if segments.length == 0 {
+        return
+    }
+    
+    next_start_1, next_start_2, start_1, start_2, end_1, end_2 Vec2 = vec2(0.0f, 0.0f)
+    
+    first_segment *PolySegment = segments.getPointer(0uz)
+    last_segment *PolySegment = segments.getPointer(segments.length - 1)
+    
+    path_start_1 Vec2 = first_segment.edge1.a
+    path_start_2 Vec2 =  first_segment.edge2.a
+    path_end_1 Vec2 = last_segment.edge1.b
+    path_end_2 Vec2 = last_segment.edge2.b
+    
+    switch end_cap_style {
+    case EndCapStyle::SQUARE
+        path_start_1 = subtract(path_start_1, multiply(first_segment.edge1.direction(true), thickness))
+        path_start_2 = subtract(path_start_2, multiply(first_segment.edge2.direction(true), thickness))
+        path_end_1 = add(path_end_1, multiply(last_segment.edge1.direction(true), thickness))
+        path_end_2 = add(path_end_2, multiply(last_segment.edge2.direction(true), thickness))
+    case EndCapStyle::ROUND
+        createTriangleFan(vertices, first_segment.center.a, first_segment.center.a, first_segment.edge1.a, first_segment.edge2.a, false)
+        createTriangleFan(vertices, last_segment.center.b, last_segment.center.b, last_segment.edge1.b, last_segment.edge2.b, true)
+    case EndCapStyle::JOINT
+        createJoint(vertices, *last_segment, *first_segment, joint_style, &path_end_1, &path_end_2, &path_start_1, &path_start_2, allow_overlap)
+    }
+    
+    each segment PolySegment in segments {
+        if idx == 0 {
+            start_1 = path_start_1
+            start_2 = path_start_2
+        }
+        
+        if idx + 1 == segments.length {
+            end_1 = path_end_1
+            end_2 = path_end_2
+        } else {
+            createJoint(vertices, segment, segments.get(idx + 1), joint_style, &end_1, &end_2, &next_start_1, &next_start_2, allow_overlap)
+        }
+        
+        vertices.add(start_1)
+        vertices.add(start_2)
+        vertices.add(end_1)
+        
+        vertices.add(end_1)
+        vertices.add(start_2)
+        vertices.add(end_2)
+        
+        start_1 = next_start_1
+        start_2 = next_start_2
+    }
+}
+
+MITER_MIN_ANGLE == 0.349066f
+ROUND_MIN_ANGLE == 0.174533f
+
+struct PolySegment (center, edge1, edge2 LineSegment)
+
+func polySegment(center LineSegment, thickness float) PolySegment {
+    segment PolySegment = undef
+    segment.center = center
+    segment.edge1 = __add__(center, multiply(center.normal(), thickness))
+    segment.edge2 = __subtract__(center, multiply(center.normal(), thickness))
+    return segment
+}
+
+func createJoint(vertices *<Vec2> List, segment_1, segment_2 PolySegment, joint_style JointStyle, end_1, end_2, next_start_1, next_start_2 *Vec2, allow_overlap bool) {
+    dir1 Vec2 = segment_1.center.direction(true)
+    dir2 Vec2 = segment_2.center.direction(true)
+    angle float = angle(dir1, dir2)
+    wrapped_angle float = angle > PI / 2.0f ? PI - angle : angle
+    
+    if joint_style == JointStyle::MITER && wrapped_angle < MITER_MIN_ANGLE {
+        joint_style = JointStyle::BEVEL
+    }
+    
+    if joint_style == JointStyle::MITER {
+        sec1, sec2 Vec2 = undef
+        
+        has_sec1 successful = intersection(segment_1.edge1, segment_2.edge1, true, &sec1)
+        has_sec2 successful = intersection(segment_1.edge2, segment_2.edge2, true, &sec2)
+        
+        *end_1 = has_sec1 ? sec1 : segment_1.edge1.b
+        *end_2 = has_sec2 ? sec2 : segment_1.edge2.b
+        *next_start_1 = *end_1
+        *next_start_2 = *end_2
+        return
+    }
+    
+    x1 float = dir1.x
+    x2 float = dir2.x
+    y1 float = dir1.y
+    y2 float = dir2.y
+    
+    clockwise bool = x1 * y2 - x2 * y1 < 0.0f
+    inner1, inner2, outer1, outer2 *LineSegment
+    
+    if clockwise {
+        outer1 = &segment_1.edge1
+        outer2 = &segment_2.edge1
+        inner1 = &segment_1.edge2
+        inner2 = &segment_2.edge2
+    } else {
+        outer1 = &segment_1.edge2
+        outer2 = &segment_2.edge2
+        inner1 = &segment_1.edge1
+        inner2 = &segment_2.edge1
+    }
+    
+    inner_sec Vec2 = undef
+    inner_sec_has successful = intersection(*inner1, *inner2, allow_overlap, &inner_sec)
+    inner_sec = inner_sec_has ? inner_sec : inner1.b
+    
+    inner_start Vec2 = undef
+    if inner_sec_has {
+        inner_start = inner_sec
+    } else if angle > PI / 2.0f {
+        inner_start = outer1.b
+    } else {
+        inner_start = inner1.b
+    }
+    
+    if clockwise {
+        *end_1 = outer1.b
+        *end_2 = inner_sec
+        *next_start_1 = outer2.a
+        *next_start_2 = inner_start
+    } else {
+        *end_1 = inner_sec
+        *end_2 = outer1.b
+        *next_start_1 = inner_start
+        *next_start_2 = outer2.a
+    }
+    
+    switch joint_style {
+    case JointStyle::BEVEL
+        vertices.add(outer1.b)
+        vertices.add(outer2.a)
+        vertices.add(inner_sec)
+    case JointStyle::ROUND
+        createTriangleFan(vertices, inner_sec, segment_1.center.b, outer1.b, outer2.a, clockwise)
+    }
+}
+
+func createTriangleFan(vertices *<Vec2> List, connect_to, origin, start, end Vec2, clockwise bool) {
+    point1 Vec2 = subtract(start, origin)
+    point2 Vec2 = subtract(end, origin)
+    
+    angle1 float = atan2(point1.y, point1.x)
+    angle2 float = atan2(point2.y, point2.x)
+    
+    if clockwise {
+        if angle2 > angle1 {
+            angle2 = angle2 - 2 * PI
+        }
+    } else if angle1 > angle2 {
+        angle1 = angle1 - 2 * PI
+    }
+    
+    joint_angle float = angle2 - angle1
+    num_triangles int = floorf(fabs(joint_angle) / ROUND_MIN_ANGLE) as int
+    if num_triangles < 1, num_triangles = 1
+    
+    tri_angle float = joint_angle / cast float num_triangles
+    
+    start_point Vec2 = start
+    end_point Vec2 = undef
+    
+    repeat num_triangles {
+        if idx + 1 == num_triangles {
+            end_point = end
+        } else {
+            rot float = cast float (idx + 1) * tri_angle
+            
+            end_point.x = cosf(rot) * point1.x - sinf(rot) * point1.y
+            end_point.y = sinf(rot) * point1.x + cosf(rot) * point1.y
+            
+            end_point = add(end_point, origin)
+        }
+        
+        vertices.add(start_point)
+        vertices.add(end_point)
+        vertices.add(connect_to)
+        start_point = end_point
+    }
+}
+

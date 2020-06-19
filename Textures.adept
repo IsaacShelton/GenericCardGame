@@ -1,0 +1,139 @@
+
+import 'main.adept'
+import 'arrayutils.adept'
+
+// NOTE: Textures can only contain members of type 'CaptTexture'
+// The name of each field must correspond to the name of the file
+// which holds the given texture
+
+struct Textures (
+    placeholder,
+    font,
+    font_black,
+    background,
+    background_brown,
+    button_hover,
+    button_selected,
+    button_unselected,
+    heart,
+    mana,
+    standard_card,
+    standard_stat_card,
+    standard_spell_card,
+    standard_creature_card,
+    standard_card_back,
+    picture_frame,
+    sharp,
+    blunt,
+    magic,
+    flesh,
+    shielded,
+    spectral,
+    attack_line,
+    fire1,
+    fire2,
+    fire3,
+    fire4,
+    fire_debuff,
+    fire_debuff_hr,
+    popup_attack1,
+    popup_attack2,
+    popup_attack3,
+    popup_shield1,
+    popup_shield2,
+    popup_shield3 CaptTexture
+) {
+    func load {
+        assets_folder String = where() + "assets/"
+        info *AnyStructType = typeinfo Textures as *AnyStructType
+        
+        // NOTE: "font_black" is intentionally left approximated
+        exceptions <String> Array = array(static String {
+            "font", "popup_attack1", "popup_attack2", "popup_attack3",
+            "popup_shield1", "popup_shield2", "popup_shield3"
+        }, 7)
+        
+        each *ubyte in [info.member_names, info.length] {
+            member_name String = stringConstant(it)
+            should_approximate bool = !exceptions.contains(member_name)
+            
+            (this as *CaptTexture)[idx] = captTexture(assets_folder + member_name + ".png", should_approximate)
+        }
+    }
+    
+    func unload {
+        length usize = (typeinfo Textures as *AnyStructType).length
+        repeat length {
+            (this as *CaptTexture)[idx].destroy()
+        }
+    }
+    
+    func getByName(name String) *CaptTexture {
+        // NOTE: May return null
+        info *AnyStructType = typeinfo Textures as *AnyStructType
+        each *ubyte in [info.member_names, info.length],
+            if name == stringConstant(it), return (this as *CaptTexture) at idx
+        return null
+    }
+    
+    func getButtonTexture(hover bool) CaptTexture {
+        return hover ? this.button_hover : this.button_unselected
+    }
+}
+
+struct CardTextures (portrait, stand1, stand2, attack1, attack2, cheer, die, hurt, sad1, sad2 *CaptTexture) {
+    func forceValid {
+        unless this.portrait && this.portrait.isValid(), this.portrait = &textures.placeholder
+        unless this.stand1   && this.stand1.isValid(),   this.stand1   = &textures.placeholder
+        unless this.stand2   && this.stand2.isValid(),   this.stand2   = &textures.placeholder
+        unless this.attack1  && this.attack1.isValid(),  this.attack1  = &textures.placeholder
+        unless this.attack2  && this.attack2.isValid(),  this.attack2  = &textures.placeholder
+        unless this.cheer    && this.cheer.isValid(),    this.cheer    = &textures.placeholder
+        unless this.die      && this.die.isValid(),      this.die      = &textures.placeholder
+        unless this.hurt     && this.hurt.isValid(),     this.hurt     = &textures.placeholder
+        unless this.sad1     && this.sad1.isValid(),     this.sad1     = &textures.placeholder
+        unless this.sad2     && this.sad2.isValid(),     this.sad2     = &textures.placeholder
+    }
+}
+
+func cardTextures(path String) CardTextures {
+    // Example 'path': "<assets-folder>/cards/stick_guy"
+    
+    unless path.endsWith("/") || path.endsWith("\\"), path.append("/")
+    
+    ct CardTextures
+    ct.portrait = dynamic_textures.load(path + "portrait.png", true)
+    ct.stand1   = dynamic_textures.load(path + "stand1.png",   false)
+    ct.stand2   = dynamic_textures.load(path + "stand2.png",   false)
+    ct.attack1  = dynamic_textures.load(path + "attack1.png",  false)
+    ct.attack2  = dynamic_textures.load(path + "attack2.png",  false)
+    ct.cheer    = dynamic_textures.load(path + "cheer.png",    false)
+    ct.die      = dynamic_textures.load(path + "die.png",      false)
+    ct.hurt     = dynamic_textures.load(path + "hurt.png",     false)
+    ct.sad1     = dynamic_textures.load(path + "sad1.png",     false)
+    ct.sad2     = dynamic_textures.load(path + "sad2.png",     false)
+    return ct
+}
+
+struct DynamicTextures (textures <*CaptTexture> List) {
+    // NOTE: Loads textures dynamically at runtime. Each
+    // returned *CaptTexture will remain valid for the rest
+    // of the program. All loaded textures should be freed
+    // at exit using dynamic_textures.unload()
+    
+    func load(fullpath String, should_approximate bool) *CaptTexture {
+        new_texture **CaptTexture = this.textures.add()
+        *new_texture = new CaptTexture
+        **new_texture = captTexture(fullpath, should_approximate)
+        return *new_texture
+    }
+    
+    func unload {
+        each *CaptTexture in this.textures, it.destroy(); delete it
+        this.textures.clear()
+    }
+}
+
+textures Textures
+dynamic_textures DynamicTextures
+

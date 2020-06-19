@@ -1,0 +1,23 @@
+
+struct FPSMonitor (previous_time double, frame_count int, fps int, fps_updated bool) {
+    func step {
+        current_time double = glfwGetTime()
+        this.frame_count++
+        
+        if current_time - this.previous_time >= 1.0 {
+            this.fps = this.frame_count
+            this.fps_updated = true
+            
+            this.frame_count = 0
+            this.previous_time = current_time
+        }
+    }
+    
+    func updatedFPS(out fps *int) bool {
+        unless this.fps_updated, return false
+        
+        *fps = this.fps
+        this.fps_updated = false
+        return true
+    }
+}

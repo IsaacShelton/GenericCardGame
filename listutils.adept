@@ -1,0 +1,7 @@
+
+import 'main.adept'
+
+func contains(this *<$T~__primitive__> List, value $T) bool {
+    each $T in static *this, if it == value, return true
+    return false
+}

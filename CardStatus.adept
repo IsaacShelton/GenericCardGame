@@ -1,0 +1,25 @@
+
+import 'main.adept'
+
+struct CardStatus (network_id CardNetworkID, is_dead bool, is_on_fire bool)
+
+func cardStatus(instance *CardInstance) CardStatus {
+    status CardStatus
+    status.network_id = instance.network_id
+    status.is_dead = instance.isDead()
+    status.is_on_fire = instance.traits.on_fire
+    return status
+}
+
+func cardStatus CardStatus {
+    status CardStatus
+    status.network_id = 0
+    status.is_dead = false
+    status.is_on_fire = false
+    return status
+}
+
+func getFromNetworkID(this *<CardStatus> List, network_id CardNetworkID) CardStatus {
+    each CardStatus in static *this, if it.network_id == network_id, return it
+    return cardStatus()
+}

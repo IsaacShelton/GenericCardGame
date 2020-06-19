@@ -1,0 +1,101 @@
+
+import 'main.adept'
+
+#default enable_experimental_line_texturing true
+LINES_POINT_TEXTURE_BACKWARDS == false
+
+import 'polyline2d.adept'
+
+func createLineModel(line_points <Vec2> List, thickness float, joint_style JointStyle, end_cap_style EndCapStyle) CaptModel {
+    vertices <Vec2> List = Polyline2D_create(line_points, thickness, joint_style, end_cap_style, false)
+    
+    vs *float = new float * (vertices.length * 3)
+    defer delete vs
+    
+    uvs *float = new float * (vertices.length * 2)
+    defer delete uvs
+    
+    each Vec2 in vertices {
+        vs[idx * 3 + 0] = it.x
+        vs[idx * 3 + 1] = it.y
+        vs[idx * 3 + 2] = 0.0f
+    }
+    
+    memset(uvs, 0, sizeof float * vertices.length * 2)
+    
+    #if enable_experimental_line_texturing
+    // 2 3
+    // 1 6
+    
+    // 1, 2, 3, 1, 3, 4
+    uv_src 8 float = undef
+    uv_src[0]  = 0.0f; uv_src[1]  = 1.0f
+    uv_src[2]  = 0.0f; uv_src[3]  = 0.0f
+    uv_src[4]  = 1.0f; uv_src[5]  = 0.0f
+    uv_src[6]  = 1.0f;  uv_src[7] = 1.0f
+    
+    unless LINES_POINT_TEXTURE_BACKWARDS {
+        // Swap 2 with 1 and 3 with 6
+        tmp 2 float = undef
+        
+        tmp[0] = uv_src[2]
+        tmp[1] = uv_src[3]
+        uv_src[2] = uv_src[0]
+        uv_src[3] = uv_src[1]
+        uv_src[0] = tmp[0]
+        uv_src[1] = tmp[1]
+        
+        tmp[0] = uv_src[4]
+        tmp[1] = uv_src[5]
+        uv_src[4] = uv_src[6]
+        uv_src[5] = uv_src[7]
+        uv_src[6] = tmp[0]
+        uv_src[7] = tmp[1]
+    }
+    
+    repeat vertices.length / 6 {
+        uvs[idx * 12 + 4] = uv_src[0 * 2]
+        uvs[idx * 12 + 5] = uv_src[0 * 2 + 1]
+        uvs[idx * 12 + 0] = uv_src[1 * 2]
+        uvs[idx * 12 + 1] = uv_src[1 * 2 + 1]
+        uvs[idx * 12 + 2] = uv_src[2 * 2]
+        uvs[idx * 12 + 3] = uv_src[2 * 2 + 1]
+        
+        uvs[idx * 12 + 6]  = uv_src[0 * 2]
+        uvs[idx * 12 + 7]  = uv_src[0 * 2 + 1]
+        uvs[idx * 12 + 8]  = uv_src[2 * 2]
+        uvs[idx * 12 + 9]  = uv_src[2 * 2 + 1]
+        uvs[idx * 12 + 10] = uv_src[3 * 2]
+        uvs[idx * 12 + 11] = uv_src[3 * 2 + 1]
+    }
+    #end
+    
+    result CaptModel
+    result.create(vs, vertices.length * 3, uvs, vertices.length * 2)
+    return result
+}
+
+func drawLine(x1, y1, x2, y2, thickness float, end_cap_style EndCapStyle, texture *CaptTexture) {
+    points <Vec2> List
+    points.add(vec2(x1, y1))
+    points.add(vec2(x2, y2))
+    
+    model CaptModel = createLineModel(points, thickness, JointStyle::MITER, end_cap_style)
+    drawLineModel(0.0f, 0.0f, texture, model)
+    model.free()
+}
+
+func drawLineModel(x_translation, y_translation float, texture *CaptTexture, model CaptModel) {
+    transformation Matrix4f = undef
+    transformation.translateFromIdentity(x_translation, y_translation, 0.0f)
+    _captain_shader.uploadMatrix4f(_captain_shader_transformation_location, transformation)
+    
+    if texture {
+        captBindTexture(*texture)
+    } else {
+        glActiveTexture(GL_TEXTURE0)
+        glBindTexture(GL_TEXTURE_2D, 0)
+    }
+    
+    model.draw()
+}

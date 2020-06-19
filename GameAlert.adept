@@ -1,0 +1,54 @@
+
+import 'main.adept'
+
+GAME_ALERT_NORMAL_SPEED == 24.0f
+GAME_ALERT_MIN_SPEED == 2.0f
+
+struct GameAlert (text Text, has_text bool, x_position, text_width float) {
+    func __defer__ {
+        if this.has_text, this.text.destroy()
+    }
+    
+    func update {
+        center_x float = captViewWidth() / 2.0f
+        x_diff float = center_x - (this.x_position + this.text_width / 2.0f)
+        distance float = sqrt(x_diff * x_diff)
+        normal_speed float = GAME_ALERT_NORMAL_SPEED
+        percent_away_from_center float = center_x == 0.0f ? 0.0f : distance / center_x
+        advance float = percent_away_from_center * normal_speed
+        if advance < GAME_ALERT_MIN_SPEED, advance = GAME_ALERT_MIN_SPEED
+        
+        this.x_position -= advance
+    }
+    
+    func draw {
+        unless this.has_text, return
+        this.text.draw(this.x_position, captViewHeight() / 2.0f - 14.0f / 2.0f)
+    }
+    
+    func shouldDie bool {
+        return this.x_position + this.text_width < 0.0f
+    }
+    
+    func getAmountAwayFromCenter float {
+        // Returns between 0 and 1
+        half_view_width float = captViewWidth() / 2.0f
+        if half_view_width == 0.0f, return 0.0f
+        
+        x_diff float = half_view_width - (this.x_position + this.text_width / 2.0f)
+        distance float = sqrt(x_diff * x_diff)
+        
+        return distance > half_view_width ? 1.0f : distance / half_view_width
+    }
+}
+
+func gameAlert(message String) GameAlert {
+    stride float = 14.0f / 7.0f * 6.0f
+    
+    alert POD GameAlert
+    alert.text = text(message, 14.0f)
+    alert.has_text = true
+    alert.x_position = captViewWidth()
+    alert.text_width = stride * message.length as float
+    return alert
+}

@@ -1,0 +1,32 @@
+
+import '2.3/parse.adept'
+
+func isIntegerLike(this *String) bool {
+    start *ubyte = this.array
+    end *ubyte = this.array at this.length
+    
+    if start == end, return false
+    if *start == '-'ub, start += sizeof ubyte as ptr
+    
+    until start == end {
+        if *start < '0'ub || *start > '9'ub, return false
+        start += sizeof ubyte as ptr
+    }
+    
+    return true
+}
+
+func isNameLike(this *String) bool {
+    start *ubyte = this.array
+    end *ubyte = this.array at this.length
+    
+    if start == end, return false
+    
+    until start == end {
+        c ubyte = *start
+        unless (c >= 'A'ub && c <= 'Z'ub) or (c >= 'a'ub && c <= 'z'ub) or (c >= '0'ub && c <= '9'ub) or (c == '-'ub or c == '_'ub), return false
+        start += sizeof ubyte as ptr
+    }
+    
+    return true
+}

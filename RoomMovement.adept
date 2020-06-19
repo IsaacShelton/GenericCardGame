@@ -1,0 +1,13 @@
+
+struct RoomMovement (isEnter bool, name String)
+
+func roomMovement(isEnter bool, name String) RoomMovement {
+    rm POD RoomMovement
+    rm.isEnter = isEnter
+    rm.name = name.clone()
+    return rm
+}
+
+func addMovement(this *<RoomMovement> List, isEnter bool, name String) {
+    this.add(roomMovement(isEnter, name))
+}

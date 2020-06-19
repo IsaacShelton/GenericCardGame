@@ -1,0 +1,297 @@
+
+import 'main.adept'
+import 'Card.adept'
+import 'Deck.adept'
+import 'Phase.adept'
+import 'CardStatus.adept'
+import 'SpellOrder.adept'
+import 'AttackOrder.adept'
+
+alias PlayerID = usize
+
+struct Player (player_id PlayerID, name String, starting_hearts, hearts, mana int, hand <CardInstance> List, board <CardInstance> List, done, sent_done bool) {
+    func drawCardsFromDeck(amount usize) {
+        repeat amount {
+            // Since <$T> List.add() currently accepts POD $T, we must
+            // store the card instance seperately in order for __defer__
+            // to be called properly
+            card CardInstance = gamedata.deck.randomCard()
+            this.hand.add(card)
+        }
+    }
+    
+    func spawnCard(blueprint_name String, unique_network_id CardNetworkID, relation String, related_unique_network_id CardNetworkID, out particles *<*CardParticle> List) {
+        destination usize = 0
+        
+        if related_unique_network_id != 0, each CardInstance in static this.board {
+            if it.network_id == related_unique_network_id {
+                destination = relation == "leftof" ? idx : idx + 1
+                break
+            }
+        }
+        
+        blueprint *CardBlueprint = gamedata.deck.getCardBlueprint(blueprint_name)
+        unless blueprint {
+            print("ERROR: GameState.spawnCard() failed to find card blueprint for '%'" % blueprint_name)
+            return
+        }
+        
+        each CardInstance in this.board, if it.network_id == 0 {
+            print("(before) NETWORK ID IS ZERO ERROR")
+            it.print()
+            glfwSetWindowShouldClose(_captain_window, true)
+        }
+        
+        // Since <$T> List.insert() currently accepts POD $T, we must
+        // store the card instance seperately in order for __defer__
+        // to be called properly
+        tmp_card CardInstance = cardInstance(blueprint)
+        this.board.insert(destination, tmp_card)
+        
+        card *CardInstance = this.board.getPointer(destination)
+        card.assignNetworkID(unique_network_id)
+        
+        // Apply battlecry-adjacent
+        if card.traits.battlecry_adjacent != 0 {
+            left *CardInstance = destination == 0 ? null as *CardInstance : this.board.getPointer(destination - 1)
+            right *CardInstance = destination + 1 == this.board.length ? null as *CardInstance : this.board.getPointer(destination + 1)
+            
+            if left {
+                left.attack  += card.traits.battlecry_adjacent
+                if particles, particles.addAttackBonus(left.network_id)
+            }
+            if right {
+                right.attack += card.traits.battlecry_adjacent
+                if particles, particles.addAttackBonus(right.network_id)
+            }
+        }
+        
+        each CardInstance in this.board, if it.network_id == 0 {
+            print("(after) NETWORK ID IS ZERO ERROR")
+            it.print()
+            glfwSetWindowShouldClose(_captain_window, true)
+        }
+    }
+    
+    func getCardOnBoardByNetworkId(network_id CardNetworkID) *CardInstance {
+        each CardInstance in this.board, if it.network_id == network_id, return &it
+        return null
+    }
+    
+    func addCardStatusesToList(out list_to_add_to *<CardStatus> List) {
+        each CardInstance in this.board, list_to_add_to.add(cardStatus(&it))
+    }
+    
+    func removeDeadCards {
+        each CardInstance in this.board, if it.isDead(), this.board.remove(idx--)
+    }
+}
+
+func addPlayer(this *<Player> List, player_id PlayerID, name String) *Player {
+    unless this.add(), return null
+    
+    new_player *Player = this.items at (this.length - 1)
+    new_player.player_id = player_id
+    new_player.name = name.clone()
+    new_player.starting_hearts = 3
+    new_player.hearts = 3
+    new_player.mana = 0
+    // new_player.hand is left empty
+    // new_player.board is left empty
+    new_player.done = false
+    
+    return new_player
+}
+
+struct GameState (
+    phase Phase,
+    next_player_id PlayerID,
+    global_mana int,
+    players <Player> List,
+    spell_orders <SpellOrder> List,
+    attack_orders <AttackOrder> List
+) {
+    func init(player_names <String> List) {
+        this.phase = phase(PhaseKind::SPAWN)
+        this.next_player_id = 1
+        this.global_mana = player_names.length
+        
+        this.players.clear()
+        each player_name String in player_names, this.addPlayer(player_name)
+        this.attack_orders.clear()
+        
+        this.distributeMana()
+    }
+    
+    func addPlayer(name String) {
+        new_player *Player = this.players.addPlayer(this.next_player_id++, name)
+        new_player.drawCardsFromDeck(3)
+    }
+    
+    func getPlayer(name String) *Player {
+        each Player in this.players, if it.name == name, return &it
+        
+        print("ERROR: GameState.getPlayer(String) failed to find player '%'" % name)
+        print("       (returning null)")
+        return null
+    }
+    
+    func getPlayer(player_id PlayerID) *Player {
+        each Player in this.players, if it.player_id == player_id, return &it
+        
+        print("ERROR: GameState.getPlayer(PlayerID) failed to find player %" % player_id)
+        print("       (returning null)")
+        return null
+    }
+    
+    func getThisPlayer *Player = this.getPlayer(gamedata.player_name)
+    
+    func getMyCard(instance_id CardInstanceID) *CardInstance {
+        me *Player = this.getThisPlayer()
+        unless me, return null
+        
+        each CardInstance in me.hand,
+            if it.instance_id == instance_id, return &it
+        
+        return null
+    }
+    
+    func getRidOfMyCardInHand(instance_id CardInstanceID) successful {
+        me *Player = this.getThisPlayer()
+        unless me, return false
+        
+        each CardInstance in me.hand {
+            if it.instance_id == instance_id {
+                me.hand.remove(idx)
+                return true
+            }
+        }
+        
+        return false
+    }
+    
+    func getOpponent *Player {
+        each Player in this.players, unless it.name == gamedata.player_name, return &it
+        
+        print("ERROR: GameState.getOpponent() failed to find opponent")
+        print("       (returning null)")
+        return null
+    }
+    
+    func getCardOnBoardByNetworkId(network_id CardNetworkID) *CardInstance {
+        each player Player in static this.players {
+            instance *CardInstance = player.getCardOnBoardByNetworkId(network_id)
+            if instance, return instance
+        }
+        return null
+    }
+    
+    func willAdvancePhase bool {
+        if this.players.length == 0, return false
+        each Player in this.players, unless it.done, return false
+        return true
+    }
+    
+    func shouldAdvancePhase bool {
+        unless this.willAdvancePhase(), return false
+        
+        this.phase.advance()
+        each Player in this.players, it.done = false; it.sent_done = false
+        
+        if this.phase.kind == PhaseKind::SPAWN,
+            this.distributeMana()
+        
+        if this.phase.kind != PhaseKind::BATTLE,
+            this.attack_orders.clear()
+        
+        return true
+    }
+    
+    func distributeMana {
+        if gamedata.gamemode.exclusive_heart_mana_bonus {
+            each Player in this.players, it.mana = this.global_mana + (it.hearts <= it.starting_hearts ? it.starting_hearts - it.hearts : 0)
+        } else {
+            each Player in this.players, it.mana = this.global_mana
+        }
+    }
+    
+    func doDrawPhase {
+        each Player in this.players {
+            cards_to_draw usize = it.starting_hearts < it.hearts ? 1 : it.starting_hearts - it.hearts + 1
+            it.drawCardsFromDeck(cards_to_draw)
+        }
+    }
+    
+    func doAttack(aggressor *CardInstance, victim *CardInstance, out particles *<*CardParticle> List, randomness int) successful {
+        used_shield bool = false
+        
+        if victim.traits.invulnerable_to_blunt && aggressor.offense.kind == OffenseKind::BLUNT {
+            // For now, let's just act that since we are invulnerable to blunt damage,
+            // Nothing else from the attack applies
+            return false
+        }
+        
+        if victim.traits.shield > 0 {
+            victim.traits.shield--
+            
+            if particles, particles.addPopupShield(victim.network_id)
+            used_shield = true
+            
+            // For now, let's just act that since the shield came into play,
+            // Nothing else from the attack applies
+            return false
+        }
+        
+        victim.hp -= aggressor.attack
+        
+        // Spread fire to victim if should
+        if aggressor.traits.spreads_fire && !victim.traits.fire_resistant {
+            if randomness < aggressor.traits.spreads_fire,
+                victim.traits.on_fire = true
+        }
+        
+        return true
+    }
+    
+    func doSpell(player_id PlayerID, blueprint *CardBlueprint, victim *CardInstance, out particles *<*CardParticle> List, randomness int) successful {
+        if blueprint.traits.applies_shield {
+            victim.traits.shield += blueprint.traits.applies_shield
+            if particles, particles.addPopupShield(victim.network_id)
+        }
+        
+        if blueprint.traits.draw_immediately {
+            player *Player = this.getPlayer(player_id)
+            if player, player.drawCardsFromDeck(blueprint.traits.draw_immediately)
+        }
+        
+        return true
+    }
+    
+    func applyPassiveEffects {
+        each player Player in this.players {
+            each CardInstance in player.board {
+                if it.traits.on_fire && !it.traits.fire_resistant {
+                    it.hp -= (it.max_hp as float / 5.0f < 1.0f ? 1 : floorf(it.max_hp as float / 5.0f) as int)
+                }
+            }
+        }
+    }
+    
+    func getCardStatuses <CardStatus> List {
+        list <CardStatus> List
+        each player Player in this.players, player.addCardStatusesToList(&list)
+        return list.commit()
+    }
+    
+    func removeDeadCards {
+        each player Player in this.players {
+            player.removeDeadCards()
+            
+            // Lose a heart if no creatures left on board
+            if player.board.length == 0 {
+                player.hearts--
+                unless gamedata.gamemode.exclusive_heart_mana_bonus, this.global_mana++
+            }
+        }
+    }
+}

@@ -1,0 +1,67 @@
+
+import 'main.adept'
+
+TEXT_14_STRIDE == 14.0f / 7.0f * 6.0f
+
+func drawCentered(texture CaptTexture, cx, cy, w, h float) {
+    captDrawTexture(texture, cx - w / 2.0f, cy - h / 2.0f, w, h)
+}
+
+func drawButton(content String, x float, y float, is_hovered bool) {
+    captDrawTexture(textures.getButtonTexture(is_hovered), x, y, MAIN_MENU_BUTTON_WIDTH, MAIN_MENU_BUTTON_HEIGHT)
+    drawTextCentered(content, x + MAIN_MENU_BUTTON_WIDTH / 2.0f, y + MAIN_MENU_BUTTON_HEIGHT / 2.0f)
+}
+
+func drawButton(content String, positioning_function func(*float, *float) void, is_hovered bool) {
+    positioning_function(undef x float, undef y float)
+    drawButton(content, x, y, is_hovered)
+}
+
+func drawButton(content String, this_object *$T, positioning_method func(*$T, *float, *float) void, is_hovered bool) {
+    positioning_method(this_object, undef x float, undef y float)
+    drawButton(content, x, y, is_hovered)
+}
+
+func isButtonHovered(x, y, mouseX, mouseY float) bool {
+    return x < mouseX && y < mouseY && mouseX < x + MAIN_MENU_BUTTON_WIDTH && mouseY < y + MAIN_MENU_BUTTON_HEIGHT
+}
+
+func isButtonHovered(positioning_function func(*float, *float) void, mouseX, mouseY float) bool {
+    positioning_function(undef x float, undef y float)
+    return isButtonHovered(x, y, mouseX, mouseY)
+}
+
+func isButtonHovered(this_object *$T, positioning_method func(*$T, *float, *float) void, mouseX, mouseY float) bool {
+    positioning_method(this_object, undef x float, undef y float)
+    return isButtonHovered(x, y, mouseX, mouseY)
+}
+
+func drawText(content String, x, y float) {
+    text Text = text(content)
+    text.draw(x, y)
+    text.destroy()
+}
+
+func drawText(content String, x, y float, font POD CaptTexture, scale float) {
+    text Text = text(content, scale)
+    text.draw(x, y, font)
+    text.destroy()
+}
+
+func drawTextCentered(content String) {
+    drawTextCentered(content, captViewWidth() / 2.0f, captViewHeight() / 2.0f)
+}
+
+func drawTextCentered(content String, x float, y float) {
+    textWidth float = TEXT_14_STRIDE * content.length as float
+    text Text = text(content)
+    text.draw(x - textWidth / 2.0f, y - 14.0f / 2.0f)
+    text.destroy()
+}
+
+func drawTextCentered(content String, x float, y float, font POD CaptTexture) {
+    textWidth float = TEXT_14_STRIDE * content.length as float
+    text Text = text(content)
+    text.draw(x - textWidth / 2.0f, y - 14.0f / 2.0f, font)
+    text.destroy()
+}

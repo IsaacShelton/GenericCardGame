@@ -1,0 +1,85 @@
+
+// NOTE: We rely on Adept 2.3 instead of 2.2
+// because of features like __pass__ auto-generation
+// and old bugs with the Adept 2.2 Compiler
+pragma compiler_version '2.3'
+pragma null_checks
+
+#default fullscreen      false
+#default monitor_fps     false
+#default ignore_NAME_txt false
+
+#set ignore_NAME_txt true
+
+import '2.3/basics.adept'
+import '2.3/captain.adept'
+import '2.3/List.adept'
+import '2.3/Matrix4f.adept'
+
+import 'NetworkManager.adept'
+import 'NetworkInterpreter.adept'
+import 'RoomListing.adept'
+import 'GameData.adept'
+import 'Textures.adept'
+import 'Scene.adept'
+import 'Text.adept'
+import 'where.adept'
+import 'strings.adept'
+import 'csignal.adept'
+import 'lines.adept'
+
+func main {
+    captOnSetup(func &onSetup)
+    captOnExit(func &onExit)
+    captOnStep(func &onStep, 60)
+    captOnClick(func &onClick, true)
+    captOnRelease(func &onRelease, true)
+    captOnKey(func &onKey)
+    captOnChar(func &onChar)
+    captOnDraw(func &onDraw)
+    captMultisample(4)
+    
+    #if fullscreen
+    captStart('Generic Card Game', true)
+    #else
+    captStart('Generic Card Game', 640, 480, false)
+    #end
+}
+
+func onSetup {
+    signal(SIGPIPE, SIG_IGN)
+    textures.load()
+    gamedata.init()
+}
+
+func onExit {
+    textures.unload()
+    dynamic_textures.unload()
+    gamedata.exit()
+}
+
+func onStep {
+    gamedata.step()
+}
+
+func onClick(x, y float, button int) {
+    gamedata.click(x, y, button)
+}
+
+func onRelease(x, y float, button int) {
+    gamedata.release(x, y, button)
+}
+
+func onKey(key, scancode, action, mods int) {
+    gamedata.key(key, scancode, action, mods)
+}
+
+func onChar(c uint) {
+    gamedata.char(c)
+}
+
+func onDraw {
+    captClearColor(captColor(0.75f, 0.75f, 0.75f))
+    captDrawTexture(textures.background, 0.0f, 0.0f, captViewWidth(), captViewHeight())
+    gamedata.draw()
+}

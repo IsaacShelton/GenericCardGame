@@ -1,0 +1,95 @@
+
+import 'main.adept'
+
+MAIN_MENU_BUTTON_COUNT == 3
+MAIN_MENU_BUTTON_WIDTH == 192.0f
+MAIN_MENU_BUTTON_HEIGHT == 32.0f
+
+struct MainMenu (buttons <String> List, actions <func() void> List, hovered_button int) {
+    func setup {
+        this.buttons.add("online")
+        this.buttons.add("options")
+        this.buttons.add("quit")
+        this.actions.add(func &gotoOnlineMenu)
+        this.actions.add(func &gotoOptionsMenu)
+        this.actions.add(func &gotoQuit)
+        this.hovered_button = 0 // 0 == none
+    }
+    
+    func enter {}
+    func exit {}
+    
+    func __defer__ {
+        // NOTE: Due to a compiler issue, we have to force a __defer__ method to
+        // be automatically generated here
+    }
+    
+    func step {
+        this.hovered_button = 0
+        captMouseViewPosition(undef x float, undef y float)
+        
+        repeat MAIN_MENU_BUTTON_COUNT {
+            if isMouseOver(x, y, idx as int + 1) {
+                this.hovered_button = idx as int + 1
+            }
+        }
+    }
+    
+    func click(x, y float, button int){
+        unless button == 1, return
+        
+        repeat MAIN_MENU_BUTTON_COUNT {
+            if isMouseOver(x, y, idx as int + 1) {
+                action func() void = this.actions.get(idx)
+                if action as ptr, action()
+                return
+            }
+        }
+    }
+    
+    func char(c uint) {}
+    func key(key, scancode, action, mods int) {}
+    
+    func draw {
+        each button_text String in this.buttons {
+            getMainMenuButtonPosition(idx + 1, undef button_x float, undef button_y float)
+            drawButton(button_text, button_x, button_y, this.hovered_button == idx + 1)
+        }
+    }
+}
+
+func getMainMenuButtonPosition(button int, out x, y *float){
+    // NOTE: 'button' starts at 1
+    
+    middle_x float = captViewWidth() / 2.0f
+    middle_y float = captViewHeight() / 2.0f
+    y_starting_offset float = 64.0f
+    y_run float = MAIN_MENU_BUTTON_HEIGHT + 32.0f
+    
+    x_start float = middle_x - MAIN_MENU_BUTTON_WIDTH / 2.0f
+    y_start float = middle_y - y_starting_offset
+    
+    y_start += y_run * (button - 1) as float
+    
+    *x = x_start
+    *y = y_start
+}
+
+func isMouseOver(mouse_x, mouse_y float, button int) bool {
+    getMainMenuButtonPosition(button, undef x float, undef y float)
+    
+    return mouse_x > x && mouse_x < x + MAIN_MENU_BUTTON_WIDTH && 
+        mouse_y > y && mouse_y < y + MAIN_MENU_BUTTON_HEIGHT
+}
+
+func gotoOnlineMenu {
+    gamedata.setScene('onlinemenu')
+}
+
+func gotoOptionsMenu {
+    
+}
+
+func gotoQuit {
+    glfwSetWindowShouldClose(_captain_window, true)
+}

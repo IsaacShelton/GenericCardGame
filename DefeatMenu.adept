@@ -1,0 +1,56 @@
+
+import 'main.adept'
+
+struct DefeatMenu (
+    is_ok_button_hovered bool
+) {
+    func setup {}
+    
+    func __defer__ {
+        // NOTE: Due to a compiler issue, we have to force a __defer__ method to
+        // be automatically generated here
+    }
+    
+    func enter {}
+    
+    func exit {}
+    
+    func step {
+        captMouseViewPosition(undef mouseX float, undef mouseY float)
+        this.calculateWhetherOkButtonIsHovered(mouseX, mouseY)
+    }
+    
+    func click(x, y float, button int){
+        unless button == 1, return
+        
+        if this.calculateWhetherOkButtonIsHovered(x, y) {
+            gamedata.setScene('mainmenu')
+            return
+        }
+    }
+    
+    func char(character uint) {}
+    
+    func key(key, scancode, action, mods int) {}
+    
+    func draw {
+        drawButton("ok", this, func &getOkButtonPosition(*DefeatMenu, *float, *float), this.is_ok_button_hovered)
+        
+        notice_message String = gamedata.manager.getIsOnline() ? "Defeat!" : "You are Offline"
+        
+        unless notice_message.empty() {
+            drawTextCentered(notice_message)
+            return
+        }
+    }
+    
+    func getOkButtonPosition(out x, y *float){
+        *x = 16.0f
+        *y = captViewHeight() - 16.0f - MAIN_MENU_BUTTON_HEIGHT
+    }
+    
+    func calculateWhetherOkButtonIsHovered(mouseX, mouseY float) bool {
+        this.is_ok_button_hovered = isButtonHovered(this, func &getOkButtonPosition(*DefeatMenu, *float, *float), mouseX, mouseY)
+        return this.is_ok_button_hovered
+    }
+}

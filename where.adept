@@ -1,0 +1,62 @@
+
+#if __windows__
+    foreign GetModuleFileNameA(ptr, *ubyte, uint) uint
+    func getExecutableLocation String {
+        // Returns location of executable on windows
+        // NOTE: Returns empty string on failure
+        result POD String = undef
+        result.array = new ubyte * 1024
+        result.capacity = 1024
+        result.ownership = StringOwnership::GIVEN
+        result.length = GetModuleFileNameA(null, result.array, 1024) as usize
+        
+        if result.length == 0 {
+            delete result.array
+            return ""
+        }
+        
+        return result.sub(0, result.last('\\'ub) + 1)
+    }
+#end
+
+#if __macos__
+    foreign _NSGetExecutablePath(*ubyte, *uint) int
+    foreign realpath(*ubyte, *ubyte) *ubyte
+    
+    func getExecutableLocation String {
+        // Returns location of executable on mac
+        // NOTE: Returns empty string on failure
+        
+        size uint = 1024
+        storage 1024 ubyte = undef
+        
+        if _NSGetExecutablePath(&storage as *ubyte, &size) != 0,
+            return ""
+        
+        resolved *ubyte = new ubyte * 4096
+        if realpath(&storage as *ubyte, resolved) == null,
+            delete resolved; return ""
+        
+        result POD String = undef
+        result.array = resolved
+        result.length = strlen(resolved)
+        result.capacity = 4096
+        result.ownership = StringOwnership::GIVEN
+        return result
+    }
+#end
+
+func where String {
+    // Returns path that executable resides in
+    // NOTE: Returns empty string on failure
+    
+    executable String = getExecutableLocation()
+    last_slash long = max(executable.last('/'ub), executable.last('\\'ub))
+    
+    if last_slash == -1 {
+        print("where(): Failed to get containing folder")
+        return ""
+    }
+    
+    return executable.sub(0, (last_slash + 1) as usize)
+}

@@ -1,0 +1,153 @@
+
+import 'main.adept'
+
+struct CardAnimation (
+    network_id CardNetworkID,
+    texture *CaptTexture,
+    start, duration double,
+    after ptr
+) {
+    func shouldEnd bool {
+        return glfwGetTime() >= this.start + this.duration
+    }
+    
+    func deleteChildren {
+        to_delete <*CardAnimation> List
+        after *CardAnimation = this.getNext()
+        while after {
+            to_delete.add(after)
+            after = after.getNext()
+        }
+        each *CardAnimation in to_delete, delete it
+    }
+    
+    func getNext() *CardAnimation = this.after as *CardAnimation
+}
+
+func advanceAnimations(this *<*CardAnimation> List) {
+    each *CardAnimation in *this {
+        // Don't advance animations that are still running
+        unless it.shouldEnd(), continue
+        
+        // Remove completed animations that don't have any children
+        unless it.getNext(), delete it; this.remove(idx--); continue
+        
+        dead_parent *CardAnimation = it
+        it = it.getNext()
+        it.start = glfwGetTime()
+        delete dead_parent
+    }
+}
+
+func newCardAnimation(network_id CardNetworkID, texture *CaptTexture, duration_in_seconds double, after *CardAnimation) *CardAnimation {
+    // NOTE: Returns allocated memory
+    animation *CardAnimation = new CardAnimation
+    animation.network_id = network_id
+    animation.texture = texture
+    animation.start = 0.0
+    animation.duration = duration_in_seconds
+    animation.after = after
+    return animation
+}
+
+func newCardAnimation(network_id CardNetworkID, frames <*CaptTexture> List, durations <double> List) *CardAnimation {
+    // NOTE: Returns allocated memory
+    unless frames.length == durations.length {
+        print("ERROR: newCardAnimation(CardNetworkID, <*CaptTexture> List, <double> List) *CardAnimation : frames.length doesn't match durations.length")
+        print("       (returning null)")
+        return null
+    }
+    
+    animation *CardAnimation = null
+    child *CardAnimation = null
+    
+    repeat frames.length {
+        if animation == null {
+            animation = newCardAnimation(network_id, frames.get(0), durations.get(0), null)
+            child = animation
+            continue
+        }
+        
+        child.after = newCardAnimation(network_id, frames.get(idx), durations.get(idx), null)
+        child = child.getNext()
+    }
+    
+    return animation
+}
+
+func hasCardAnimation(this *<*CardAnimation> List, network_id CardNetworkID, out animation *CardAnimation) bool {
+    each *CardAnimation in static *this, if it.network_id == network_id, *animation = *it; return true
+    return false
+}
+
+struct ScheduledCardAnimation (animation *CardAnimation, time double) {
+    func shouldStart bool = glfwGetTime() >= this.time
+}
+
+func scheduledCardAnimation(animation *CardAnimation, time double) ScheduledCardAnimation {
+    scheduled ScheduledCardAnimation
+    scheduled.animation = animation
+    scheduled.time = time
+    return scheduled
+}
+
+// ---------------------------------------------------------
+
+func newAttackAnimation(this *CardInstance) *CardAnimation {
+    // NOTE: This function allocates memory and returns it
+    frames <*CaptTexture> List
+    durations <double> List
+    
+    frames.add(this.ct.attack1)
+    durations.add(1.0)
+    frames.add(this.ct.attack2)
+    durations.add(1.0)
+    
+    return newCardAnimation(this.network_id, frames, durations)
+}
+
+func newHurtAnimation(this *CardInstance) *CardAnimation {
+    // NOTE: This function allocates memory and returns it
+    frames <*CaptTexture> List
+    durations <double> List
+    
+    frames.add(this.ct.hurt)
+    durations.add(0.5)
+    
+    return newCardAnimation(this.network_id, frames, durations)
+}
+
+func newDieAnimation(this *CardInstance) *CardAnimation {
+    // NOTE: This function allocates memory and returns it
+    frames <*CaptTexture> List
+    durations <double> List
+    
+    frames.add(this.ct.die)
+    durations.add(0.75)
+    
+    return newCardAnimation(this.network_id, frames, durations)
+}
+
+func newCheerAnimation(this *CardInstance) *CardAnimation {
+    // NOTE: This function allocates memory and returns it
+    frames <*CaptTexture> List
+    durations <double> List
+    
+    frames.add(this.ct.cheer)
+    durations.add(0.75)
+    
+    return newCardAnimation(this.network_id, frames, durations)
+}
+
+func newMockAnimation(this *CardInstance) *CardAnimation {
+    // NOTE: This function allocates memory and returns it
+    frames <*CaptTexture> List
+    durations <double> List
+    
+    frames.add(this.ct.stand1)
+    durations.add(1.0)
+    frames.add(this.ct.cheer)
+    durations.add(0.75)
+    
+    return newCardAnimation(this.network_id, frames, durations)
+}

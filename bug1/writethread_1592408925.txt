@@ -1,0 +1,38 @@
+$list
+$name andy
+$list
+$join asdf
+$lobby
+$close
+andy@spawn ~ shield_guy rightof 0
+andy@spawn ~ on_fire_guy rightof 31
+andy@end
+andy@end
+andy@end
+andy@end
+andy@spawn ~ stick_guy rightof 31
+andy@spawn ~ stick_guy rightof 0
+andy@end
+andy@end
+andy@end
+andy@end
+andy@spawn ~ shield_guy rightof 33
+andy@spawn ~ stick_guy rightof 31
+andy@end
+andy@end
+andy@end
+andy@end
+andy@end
+andy@end
+andy@end
+andy@end
+andy@end
+andy@end
+andy@end
+andy@end
+andy@end
+andy@end
+andy@end
+andy@end
+$leave
+

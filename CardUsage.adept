@@ -1,0 +1,28 @@
+
+import 'main.adept'
+
+enum CardUsage (SPAWNPHASE, PREBATTLE)
+
+func cardUsage(string String) CardUsage {
+    if string == "spawnphase", return CardUsage::SPAWNPHASE
+    if string == "prebattle",  return CardUsage::PREBATTLE
+    
+    print("WARNING: cardUsage(String) got unknown usage name")
+    return CardUsage::SPAWNPHASE
+}
+
+func allowed(usage CardUsage, phase PhaseKind) bool {
+    switch usage {
+    case CardUsage::SPAWNPHASE, return phase == PhaseKind::SPAWN
+    case CardUsage::PREBATTLE,  return phase == PhaseKind::SPAWN || phase == PhaseKind::ATTACK
+    }
+    return false
+}
+
+func toString(usage CardUsage) String {
+    switch usage {
+    case CardUsage::SPAWNPHASE, return "spawnphase"
+    case CardUsage::PREBATTLE,  return "prebattle"
+    }
+    return "unknown"
+}

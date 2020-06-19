@@ -1,0 +1,115 @@
+
+import 'main.adept'
+
+struct CardParticle (
+    network_id CardNetworkID,
+    texture *CaptTexture,
+    width, height float,
+    start, duration double,
+    after ptr
+) {
+    func shouldEnd bool {
+        return glfwGetTime() >= this.start + this.duration
+    }
+    
+    func deleteChildren {
+        to_delete <*CardParticle> List
+        after *CardParticle = this.getNext()
+        while after {
+            to_delete.add(after)
+            after = after.getNext()
+        }
+        each *CardParticle in to_delete, delete it
+    }
+    
+    func getNext() *CardParticle = this.after as *CardParticle
+}
+
+func advanceParticles(this *<*CardParticle> List) {
+    each *CardParticle in *this {
+        // Don't advance animations that are still running
+        unless it.shouldEnd(), continue
+        
+        // Remove completed animations that don't have any children
+        unless it.getNext(), delete it; this.remove(idx--); continue
+        
+        dead_parent *CardParticle = it
+        it = it.getNext()
+        it.start = glfwGetTime()
+        delete dead_parent
+    }
+}
+
+func newCardParticle(network_id CardNetworkID, texture *CaptTexture, width, height float, duration_in_seconds double, after *CardParticle) *CardParticle {
+    // NOTE: Returns allocated memory
+    particle *CardParticle = new CardParticle
+    particle.network_id = network_id
+    particle.texture = texture
+    particle.width = width
+    particle.height = height
+    particle.start = 0.0
+    particle.duration = duration_in_seconds
+    particle.after = after
+    return particle
+}
+
+func newCardParticle(network_id CardNetworkID, frames <*CaptTexture> List, width, height float, durations <double> List) *CardParticle {
+    // NOTE: Returns allocated memory
+    unless frames.length == durations.length {
+        print("ERROR: newCardParticle(CardNetworkID, <*CaptTexture> List, float, float <double> List) *CardParticle : frames.length doesn't match durations.length")
+        print("       (returning null)")
+        return null
+    }
+    
+    particle *CardParticle = null
+    child *CardParticle = null
+    
+    repeat frames.length {
+        if particle == null {
+            particle = newCardParticle(network_id, frames.get(0), width, height, durations.get(0), null)
+            child = particle
+            continue
+        }
+        
+        child.after = newCardParticle(network_id, frames.get(idx), width, height, durations.get(idx), null)
+        child = child.getNext()
+    }
+    
+    return particle
+}
+
+// ---------------------------------------------------------
+
+func addAttackBonus(this *<*CardParticle> List, network_id CardNetworkID) {
+    frames <*CaptTexture> List
+    durations <double> List
+    
+    frames.add(&textures.popup_attack1)
+    durations.add(0.25f)
+    frames.add(&textures.popup_attack2)
+    durations.add(0.25f)
+    frames.add(&textures.popup_attack3)
+    durations.add(1.0f)
+    
+    this.spawn(newCardParticle(network_id, frames, 50.0f, 50.0f, durations))
+}
+
+func addPopupShield(this *<*CardParticle> List, network_id CardNetworkID) {
+    frames <*CaptTexture> List
+    durations <double> List
+    
+    frames.add(&textures.popup_shield1)
+    durations.add(0.25f)
+    frames.add(&textures.popup_shield2)
+    durations.add(0.25f)
+    frames.add(&textures.popup_shield3)
+    durations.add(1.0f)
+    
+    this.spawn(newCardParticle(network_id, frames, 50.0f, 50.0f, durations))
+}
+
+func spawn(this *<*CardParticle> List, particle *CardParticle) {
+    // NOTE: Takes ownership of 'particle *CardParticle'
+    particle.start = glfwGetTime()
+    this.add(particle)
+}

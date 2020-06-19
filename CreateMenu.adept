@@ -1,0 +1,91 @@
+
+import 'main.adept'
+
+struct CreateMenu (
+    name String,
+    is_back_button_hovered, is_ok_button_hovered bool
+) {
+    func setup {}
+    
+    func __defer__ {
+        // NOTE: Due to a compiler issue, we have to force a __defer__ method to
+        // be automatically generated here
+    }
+    
+    func enter {
+        this.name = ""
+    }
+    
+    func exit {}
+    
+    func step {
+        captMouseViewPosition(undef mouseX float, undef mouseY float)
+        this.calculateWhetherBackButtonIsHovered(mouseX, mouseY)
+        this.calculateWhetherOkButtonIsHovered(mouseX, mouseY)
+    }
+    
+    func click(x, y float, button int){
+        unless button == 1, return
+        
+        if this.calculateWhetherBackButtonIsHovered(x, y) {
+            gamedata.setScene('onlinemenu')
+            return
+        }
+        
+        if this.calculateWhetherOkButtonIsHovered(x, y) {
+            this.finalize()
+            return
+        }
+    }
+    
+    func char(character uint) {
+        c ubyte = character as ubyte
+        if (c >= 'A'ub && c <= 'Z'ub) or (c >= 'a'ub && c <= 'z'ub) or (c >= '0'ub && c <= '9'ub) or (c == '-'ub or c == '_'ub),
+            this.name = this.name + c
+    }
+    
+    func key(key, scancode, action, mods int) {
+        if      key == GLFW_KEY_BACKSPACE && action == GLFW_PRESS || action == GLFW_REPEAT, this.name.reduce(1)
+        else if key == GLFW_KEY_ENTER && action == GLFW_PRESS, this.finalize()
+    }
+    
+    func draw {
+        drawButton("back", this, func &getBackButtonPosition(*CreateMenu, *float, *float), this.is_back_button_hovered)
+        drawButton("ok", this, func &getOkButtonPosition(*CreateMenu, *float, *float), this.is_ok_button_hovered)
+        
+        notice_message String = gamedata.manager.getIsOnline() ? "Enter room name: " + this.name : "You are Offline"
+        
+        unless notice_message.empty() {
+            drawTextCentered(notice_message)
+            return
+        }
+    }
+    
+    func getBackButtonPosition(out x, y *float){
+        *x = 16.0f
+        *y = captViewHeight() - 16.0f - MAIN_MENU_BUTTON_HEIGHT
+    }
+    
+    func getOkButtonPosition(out x, y *float){
+        *x = 16.0f
+        *y = captViewHeight() - 16.0f * 2.0f - MAIN_MENU_BUTTON_HEIGHT * 2.0f
+    }
+    
+    func calculateWhetherBackButtonIsHovered(mouseX, mouseY float) bool {
+        this.is_back_button_hovered = isButtonHovered(this, func &getBackButtonPosition(*CreateMenu, *float, *float), mouseX, mouseY)
+        return this.is_back_button_hovered
+    }
+    
+    func calculateWhetherOkButtonIsHovered(mouseX, mouseY float) bool {
+        this.is_ok_button_hovered = isButtonHovered(this, func &getOkButtonPosition(*CreateMenu, *float, *float), mouseX, mouseY)
+        return this.is_ok_button_hovered
+    }
+    
+    func finalize {
+        gamedata.interpreter.clearRoomMovements()
+        gamedata.manager.writeOutgoing("$create " + this.name + "\n")
+        gamedata.room_name = this.name
+        gamedata.is_in_room = true
+        gamedata.setScene('lobby')
+    }
+}

@@ -1,0 +1,111 @@
+
+FONT_TEXTURE_WIDTH == 384.0f
+FONT_TEXTURE_HEIGHT == 8.0f
+
+struct Text (model CaptModel, has bool) {
+    func draw(x, y float) {
+        transformation Matrix4f = undef
+        transformation.translateFromIdentity(x, y, 0.0f)
+        _captain_shader.uploadMatrix4f(_captain_shader_transformation_location, transformation)
+        captBindTexture(textures.font)
+        this.model.draw()
+    }
+    
+    func draw(x, y float, custom_font_texture POD CaptTexture) {
+        transformation Matrix4f = undef
+        transformation.translateFromIdentity(x, y, 0.0f)
+        _captain_shader.uploadMatrix4f(_captain_shader_transformation_location, transformation)
+        captBindTexture(custom_font_texture)
+        this.model.draw()
+    }
+    
+    func destroy {
+        unless this.has {
+            printf('INTERNAL ERROR: Text.destroy() called when nothing preset\n')
+        }
+        
+        this.model.free()
+        this.has = false
+    }
+}
+
+func text(content String) Text = text(content, 14.0)
+func text(content *ubyte) Text = text(stringConstant(content), 14.0)
+func text(content *ubyte, scale double) Text = text(stringConstant(content), scale)
+
+func text(content String, scale double) Text {
+    vertices, uvs <float> List
+    x float = 0.0f
+    y float = 0.0f
+    
+    each ubyte in [content.array, content.length] {
+        if it == '\n'ub {
+            x = 0.0f
+            y += scale * 1.5
+            continue
+        }
+        
+        w float = scale / 7.0f * 5.0f
+        h float = scale
+        
+        points 18 float = undef
+        points[0]  = x;     points[1]  = y + h; points[2]  = 0.0f
+        points[3]  = x;     points[4]  = y;     points[5]  = 0.0f
+        points[6]  = x + w; points[7]  = y;     points[8]  = 0.0f
+        points[9]  = x;     points[10] = y + h; points[11] = 0.0f
+        points[12] = x + w; points[13] = y;     points[14] = 0.0f
+        points[15] = x + w; points[16] = y + h; points[17] = 0.0f
+        x += scale / 7.0f * 6.0f
+        
+        repeat 18, vertices.add(points[idx])
+        appendCharacterUVs(it, &uvs)
+    }
+    
+    text Text = undef
+    text.model.create(vertices.items, vertices.length, uvs.items, uvs.length)
+    text.has = true
+    return text
+}
+
+func fontIndexFor(character ubyte) usize {
+    if character >= 'A'ub && character <= 'Z'ub, return cast usize (character - 'A'ub)
+    if character >= 'a'ub && character <= 'z'ub, return cast usize (character - 'a'ub)
+    if character >= '0'ub && character <= '9'ub, return cast usize (character - '0'ub + 35)
+    
+    special String = ".,!?-+/~:"
+    each ubyte in static [special.array, special.length], if it == character,
+        return idx + 26
+    
+    // Characters added on to old font
+    additional String = "'%"
+    each ubyte in static [additional.array, additional.length], if it == character,
+        return idx + 45
+    
+    return 29
+}
+
+func appendCharacterUVs(character ubyte, uvs *<float> List) {
+    if character == ' 'ub {
+        repeat 6, uvs.add(FONT_TEXTURE_WIDTH); uvs.add(0.0f)
+        return
+    }
+    
+    index usize = fontIndexFor(character)
+    u  float = (6.0f * index as float) / FONT_TEXTURE_WIDTH
+    uw float = (6.0f * index as float + 5.0f) / FONT_TEXTURE_WIDTH
+    v  float = 0.0f / FONT_TEXTURE_HEIGHT
+    vh float = 7.0f / FONT_TEXTURE_HEIGHT
+    
+    uvs.add(u)
+    uvs.add(vh)
+    uvs.add(u)
+    uvs.add(v)
+    uvs.add(uw)
+    uvs.add(v)
+    uvs.add(u)
+    uvs.add(vh)
+    uvs.add(uw)
+    uvs.add(v)
+    uvs.add(uw)
+    uvs.add(vh)
+}

@@ -1,0 +1,13 @@
+
+import 'main.adept'
+
+struct SpellOrder (player_id PlayerID, blueprint *CardBlueprint, victim CardNetworkID, randomness int)
+
+func spellOrder(player_id PlayerID, blueprint *CardBlueprint, victim CardNetworkID, randomness int) SpellOrder {
+    order POD SpellOrder
+    order.player_id = player_id
+    order.blueprint = blueprint
+    order.victim = victim
+    order.randomness = randomness
+    return order
+}

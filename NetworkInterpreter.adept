@@ -1,0 +1,255 @@
+
+import 'main.adept'
+import 'Action.adept'
+import 'ActionAgent.adept'
+
+#default NetworkInterpreter_print_fulfilled_actions false
+
+struct NetworkInterpreter (
+    thread pthread_t,
+    manager *NetworkManager,
+    running bool,
+    should_stop bool,
+    should_stop_mutex pthread_mutex_t,
+    access_mutex pthread_mutex_t,
+    listings <String> List,
+    new_listings bool,
+    monitor_listings bool,
+    monitor_listings_timestamp_seconds time_t,
+    room_movements <RoomMovement> List,
+    agents <ActionAgent> List,
+    ignore_next_join_message_from String,
+    room_was_closed bool
+) {
+    func start(network_manager *NetworkManager) {
+        this.manager = network_manager
+        pthread_mutex_init(&this.should_stop_mutex, null)
+        pthread_mutex_init(&this.access_mutex, null)
+        this.should_stop = false
+        this.monitor_listings = false
+        this.monitor_listings_timestamp_seconds = time(null)
+        
+        if pthread_create(&this.thread, null, func &interpreting(*NetworkInterpreter) as ptr as func(ptr) ptr, this as ptr) {
+            printf('Failed to start interpreter thread\n')
+            return
+        }
+        
+        this.running = true
+    }
+    
+    func stop {
+        pthread_mutex_lock(&this.should_stop_mutex)
+        this.should_stop = true
+        pthread_mutex_unlock(&this.should_stop_mutex)
+        
+        if this.running && pthread_join(this.thread, null) {
+            printf('Failed to join interpreter thread\n')
+            return
+        }
+        
+        pthread_mutex_destroy(&this.should_stop_mutex)
+        pthread_mutex_destroy(&this.access_mutex)
+        this.running = false
+    }
+    
+    func interpreting ptr {
+        this.manager.writeOutgoing("$list\n")
+        
+        until break {
+            pthread_mutex_lock(&this.should_stop_mutex)
+            should_stop bool = this.should_stop
+            pthread_mutex_unlock(&this.should_stop_mutex)
+            if should_stop, break
+            
+            // Handle incoming
+            if this.manager.readIncoming(def string String), this.process(string)
+            
+            // Handle auto outgoing
+            pthread_mutex_lock(&this.access_mutex)
+            if this.monitor_listings {
+                if this.monitor_listings_timestamp_seconds < time(null) {
+                    this.monitor_listings_timestamp_seconds = time(null)
+                    this.manager.writeOutgoing("$list\n")
+                }
+            }
+            pthread_mutex_unlock(&this.access_mutex)
+        }
+        return null
+    }
+    
+    func process(string String) {
+        string.trim()
+        subject String
+        
+        if string.startsWith("$list-response ") {
+            list <String> List = this.parseStringArray(string.segment(15, string.length))
+            
+            pthread_mutex_lock(&this.access_mutex)
+            defer pthread_mutex_unlock(&this.access_mutex)
+            
+            this.new_listings = true
+            this.listings = list.commit()
+        } else if string.startsWith("$lobby-response ") {
+            list <String> List = this.parseStringArray(string.segment(16, string.length))
+            
+            pthread_mutex_lock(&this.access_mutex)
+            defer pthread_mutex_unlock(&this.access_mutex)
+            
+            each String in list, this.room_movements.addMovement(true, it.commit())
+        } else if string.startsWith("$error ") {
+            print("NETWORK ERROR: " + string)
+        } else if string == "$close" {
+            pthread_mutex_lock(&this.access_mutex)
+            this.room_was_closed = true
+            pthread_mutex_unlock(&this.access_mutex)
+        } else if isPlayerMonoAction(string, '$'ub, "join", &subject) {
+            pthread_mutex_lock(&this.access_mutex)
+            
+            if this.ignore_next_join_message_from == subject {
+                this.ignore_next_join_message_from = ""
+            } else {
+                this.room_movements.addMovement(true, subject.commit())
+            }
+            
+            pthread_mutex_unlock(&this.access_mutex)
+        } else if isPlayerMonoAction(string, '$'ub, "leave", &subject) {
+            pthread_mutex_lock(&this.access_mutex)
+            this.room_movements.addMovement(false, subject.commit())
+            pthread_mutex_unlock(&this.access_mutex)
+        } else if string.contains("@") {
+            pthread_mutex_lock(&this.access_mutex)
+            defer pthread_mutex_unlock(&this.access_mutex)
+            
+            agent_name StringView = string.span(0, string.first('@'ub))
+            agent *ActionAgent = this.getOrCreateAgent(agent_name)
+            
+            if agent == null {
+                print("ERROR: NetworkInterpreter.process(String): this.getOrCreateAgent(String) failed to create agent")
+                return
+            }
+            
+            agent.actions.add(action(string.commit()))
+        }
+    }
+    
+    func parseStringArray(text String) <String> List {
+        // NOTE: Does not support escape sequences
+        // TODO: Clean up this messy code
+        // SAFETY: LAZY: This function parses the text without regards to correctness
+        
+        list <String> List
+        if text.length == 0, return list.commit()
+        if text.array[0] != '['ub, printf('NetworkInterpreter.parseStringArray(): "[" expected'); return list.commit()
+        
+        i usize = 1; while i < text.length && text.array[i] != ']'ub {
+            if text.array[i] != '\''ub, printf('NetworkInterpreter.parseStringArray(): "\'" expected'); return list.commit()
+            start usize = ++i
+            j usize = i + 1; while j < text.length && text.array[j] != '\''ub, j++
+            list.add(text.segment(i, j))
+            i = j + 1
+            
+            while i < text.length && text.array[i] == ' 'ub || text.array[i] == ','ub, i++
+        }
+        
+        return list.commit()
+    }
+    
+    func setMonitorListings(value bool) {
+        pthread_mutex_lock(&this.access_mutex)
+        defer pthread_mutex_unlock(&this.access_mutex)
+        
+        if this.monitor_listings == value, return
+        this.monitor_listings = value
+        this.monitor_listings_timestamp_seconds = 0
+    }
+    
+    func updatedListings(out list *<String> List) bool {
+        pthread_mutex_lock(&this.access_mutex)
+        defer pthread_mutex_unlock(&this.access_mutex)
+        
+        if this.new_listings {
+            *list = this.listings.clone()
+            this.new_listings = false
+            return true
+        }
+        
+        return false
+    }
+    
+    func updatedRoomMovements(out list *<RoomMovement> List) bool {
+        pthread_mutex_lock(&this.access_mutex)
+        defer pthread_mutex_unlock(&this.access_mutex)
+        
+        if this.room_movements.length != 0 {
+            *list = this.room_movements.commit()
+            this.room_movements.clear()
+            return true
+        }
+        
+        return false
+    }
+    
+    func updatedActions(attempt_apply_action func(ptr, *Action) successful, extra_data ptr) {
+        pthread_mutex_lock(&this.access_mutex)
+        defer pthread_mutex_unlock(&this.access_mutex)
+        
+        each agent ActionAgent in this.agents {
+            while agent.actions.length > 0 && attempt_apply_action(extra_data, agent.actions.getPointer(0)) {
+                #if NetworkInterpreter_print_fulfilled_actions
+                print("fulfilled action %" % agent.actions.getPointer(0).command_text)
+                #end
+                
+                agent.actions.remove(0)
+            }
+        }
+    }
+    
+    func wasRoomClosed bool {
+        pthread_mutex_lock(&this.access_mutex)
+        defer pthread_mutex_unlock(&this.access_mutex)
+        if this.room_was_closed {
+            this.room_was_closed = false
+            return true
+        }
+        return false
+    }
+    
+    func clearRoomMovements(){
+        pthread_mutex_lock(&this.access_mutex)
+        defer pthread_mutex_unlock(&this.access_mutex)
+        this.room_movements.clear()
+    }
+    
+    func ignoreNextJoinMessageFrom(name String){
+        pthread_mutex_lock(&this.access_mutex)
+        this.ignore_next_join_message_from = name
+        pthread_mutex_unlock(&this.access_mutex)
+    }
+    
+    func getOrCreateAgent(agent_name String) *ActionAgent {
+        // NOTE: access_mutex should already be acquired
+        each ActionAgent in this.agents, if it.name == agent_name, return &it
+        return this.agents.addAgent(agent_name)
+    }
+}
+
+func isPlayerMonoAction(command_text String, separator ubyte, monoaction String, out subject *String) bool {
+    // Examples: "isaac@leave", "my-cool-name@join", "John_Smith@close"
+    // > command_text == "isaac@leave"
+    // > separator == '$'ub
+    // > monoaction == "leave"
+    // > out *subject == "isaac"
+    
+    if command_text.first(" ") != -1sl, return false
+    
+    symbol long = command_text.first(separator)
+    if symbol < 0, return false
+    
+    action String = command_text.segment(symbol + 1, command_text.length)
+    if action == monoaction {
+        *subject = command_text.segment(0, symbol)
+        return true
+    }
+    
+    return false
+}

@@ -1,0 +1,828 @@
+
+import 'main.adept'
+import 'drawutils.adept'
+import 'listutils.adept'
+import 'Optional.adept'
+import 'GameAlert.adept'
+import 'GameState.adept'
+import 'AttackOrder.adept'
+import 'CardAnimation.adept'
+import 'CardParticle.adept'
+
+#default CardGame_backslash_to_show_pending_actions true
+
+CARD_WIDTH   == 64.0f
+CARD_HEIGHT  == 96.0f
+MANA_WIDTH   == 32.0f
+MANA_HEIGHT  == 32.0f
+HEART_WIDTH  == 24.0f
+HEART_HEIGHT == 24.0f
+CARD_PADDING == 16.0f
+MANA_PADDING == 8.0f
+HEART_PADDING == 8.0f
+CARD_XADVANCE == CARD_WIDTH + CARD_PADDING
+CARD_YADVANCE == CARD_HEIGHT + CARD_PADDING
+MANA_XADVANCE == MANA_WIDTH + MANA_PADDING
+MANA_YADVANCE == MANA_HEIGHT + MANA_PADDING
+HEART_XADVANCE == HEART_WIDTH + HEART_PADDING
+HEART_YADVANCE == HEART_HEIGHT + HEART_PADDING
+
+CARD_PICTURE_Y_OFFSET ==  50.0f / 300.0f * CARD_HEIGHT
+CARD_PICTURE_HEIGHT   == 100.0f / 300.0f * CARD_HEIGHT
+CARD_ELEMENT_WIDTH    == 12.0f
+CARD_ELEMENT_HEIGHT   == 12.0f
+CHARACTER_WIDTH       == 32.0f
+CHARACTER_HEIGHT      == 32.0f
+
+struct CardGame (
+    state GameState,
+    alert <GameAlert> Optional,
+    dragging_card CardInstanceID,
+    dragging_card_scale float,
+    is_end_turn_button_hovered bool,
+    show_end_turn_button bool,
+    experimental_value float,
+    attack_orders <AttackOrder> List,
+    with_aggressor CardNetworkID,
+    card_animations <*CardAnimation> List,
+    scheduled_animations <ScheduledCardAnimation> List,
+    playing_attack_order <AttackOrder> Optional,
+    animated_attack_line_x, animated_attack_line_y float, // 0.0f == starting card position
+    card_statuses <CardStatus> List,
+    particles <*CardParticle> List
+) {
+    func setup {}
+    
+    func __defer__ {
+        // NOTE: Due to a compiler issue, we have to force a __defer__ method to
+        // be automatically generated here
+        
+        this.clearAllAnimations()
+    }
+    
+    func enter {
+        this.dragging_card = 0
+        this.show_end_turn_button = true
+        
+        this.displayAlert("Spawn Phase!")
+        this.experimental_value = 1.0f
+        
+        this.state.init(gamedata.player_names)
+        gamedata.interpreter.clearRoomMovements()
+    }
+    
+    func exit {
+        this.alert.rid()
+    }
+    
+    func step {
+        // Find ourselves
+        me *Player = this.state.getThisPlayer()
+        
+        // If someone leaves, consider it a victory
+        if gamedata.interpreter.updatedRoomMovements(def movements <RoomMovement> List) {
+            each RoomMovement in movements, unless it.isEnter {
+                gamedata.leaveRoom()
+                gamedata.setScene('victory')
+                return
+            }
+        }
+        
+        // Get rid of dead alerts
+        if this.alert.has {
+            this.alert.getPointer().update()
+            if this.alert.getPointer().shouldDie(), this.alert.rid()
+        }
+        
+        // Auto advance phase after draw phase
+        if this.state.phase.kind == PhaseKind::DRAW && !this.alert.has {
+            this.endTurn()
+        }
+        
+        // Process actions received from server
+        gamedata.interpreter.updatedActions(func &handleActionsCallback(*CardGame, *Action) as ptr as func(ptr, *Action) successful, this)
+        
+        // Advance the game phase if ready
+        if this.state.shouldAdvancePhase() {
+            this.displayAlert(this.state.phase.toString() + "!")
+            
+            // Clear attack orders when entering attack phase
+            if this.state.phase.kind == PhaseKind::ATTACK {
+                this.attack_orders.clear()
+                this.state.attack_orders.clear()
+            }
+            
+            // Automatically do draw phase without player intervention
+            if this.state.phase.kind == PhaseKind::DRAW {
+                this.state.doDrawPhase()
+            } else if this.state.phase.kind != PhaseKind::BATTLE {
+                // Show end turn button if not draw or battle phase
+                this.show_end_turn_button = true
+            }
+            
+            // Remove any playing attack order
+            this.playing_attack_order.rid()
+            
+            // Do spells when changing phase
+            each SpellOrder in this.state.spell_orders {
+                victim *CardInstance = this.state.getCardOnBoardByNetworkId(it.victim)
+                this.state.doSpell(it.player_id, it.blueprint, victim, &this.particles, it.randomness)
+                
+                player *Player = this.state.getPlayer(it.player_id)
+                if player && player != this.state.getThisPlayer(), player.hand.reduce(1)
+                
+                this.state.spell_orders.remove(idx--)
+            }
+        }
+        
+        // Set whether the 'end turn' button is hovered
+        captMouseViewPosition(undef mouseX float, undef mouseY float)
+        this.calculateWhetherEndTurnButtonIsHovered(mouseX, mouseY)
+        
+        // Advance card animations
+        this.card_animations.advanceAnimations()
+        this.playScheduledAnimations()
+        
+        // Advance card particles
+        this.particles.advanceParticles()
+        
+        // Do attacking in battle phase
+        if this.state.phase.kind == PhaseKind::BATTLE && this.state.attack_orders.length != 0 && this.card_animations.length == 0 && this.scheduled_animations.length == 0 {
+            // Update card statuses
+            this.card_statuses = this.state.getCardStatuses()
+            
+            // Do damage from previously played attack
+            order AttackOrder = this.state.attack_orders.get(0)
+            this.state.attack_orders.remove(0)
+            
+            aggressor *CardInstance = this.state.getCardOnBoardByNetworkId(order.aggressor)
+            victim *CardInstance = this.state.getCardOnBoardByNetworkId(order.victim)
+            
+            if aggressor && victim {
+                did_attack_work successful = this.state.doAttack(aggressor, victim, &this.particles, order.randomness)
+                this.playAttackAnimation(aggressor, victim, did_attack_work)
+                
+                this.animated_attack_line_x = 0.0f // 0.0f == starting card x
+                this.animated_attack_line_y = 0.0f // 0.0f == starting card y
+                this.playing_attack_order.set(order)
+            }
+        }
+        
+        // Auto advance phase after battle phase
+        if this.state.phase.kind == PhaseKind::BATTLE && !this.alert.has && this.state.attack_orders.length == 0 &&
+                this.card_animations.length == 0 && this.scheduled_animations.length == 0 && !me.sent_done {
+            
+            // Update card statuses
+            this.card_statuses = this.state.getCardStatuses()
+            
+            this.state.applyPassiveEffects()
+            this.state.removeDeadCards()
+            
+            // Leave the game if lost
+            if me.hearts <= 0 {
+                gamedata.manager.writeOutgoing("$leave\n")
+                gamedata.is_in_room = false
+                gamedata.setScene('defeat')
+                return
+            }
+            
+            this.endTurn()
+        }
+    }
+    
+    func click(x, y float, button int){
+        unless button == 1, return
+        
+        // Find ourselves
+        me *Player = this.state.getThisPlayer()
+        
+        // End our turn if the 'end turn' button was clicked
+        if this.show_end_turn_button && this.calculateWhetherEndTurnButtonIsHovered(x, y) {
+            this.endTurn()
+            return
+        }
+        
+        // When in spawn and attack phase, allow the player to drag and spawn cards
+        if this.state.phase.kind == PhaseKind::SPAWN || this.state.phase.kind == PhaseKind::ATTACK {
+            if me && me.hand.length > 0 && !me.sent_done {
+                this.getMyHandCardPositions(def card_positions <CardPosition> List)
+                each CardPosition in card_positions {
+                    if it.intersecting(x, y) && allowed(me.hand.getPointer(idx).traits.usage, this.state.phase.kind) {
+                        this.dragging_card = me.hand.getPointer(idx).instance_id
+                        this.dragging_card_scale = it.scale
+                        return
+                    }
+                }
+            }
+        }
+        
+        // When in attack phase, allow the player to drag attack vectors
+        if this.state.phase.kind == PhaseKind::ATTACK {
+            this.with_aggressor = 0
+            if me && me.board.length > 0 && !me.sent_done {
+                this.getMyBoardCardPositions(def card_positions <CardPosition> List)
+                each CardPosition in card_positions {
+                    if it.intersecting(x, y) {
+                        this.with_aggressor = me.board.getPointer(idx).network_id
+                        break
+                    }
+                }
+            }
+        }
+    }
+    
+    func release(x, y float, button int){
+        unless button == 1, return
+        
+        me *Player = this.state.getThisPlayer()
+        
+        // When in spawn phase or attack phase, allow the player to spawn in cards by dropping dragged cards
+        if (this.state.phase.kind == PhaseKind::SPAWN || this.state.phase.kind == PhaseKind::ATTACK) &&
+                this.dragging_card && y < captViewHeight() - CARD_HEIGHT {
+            
+            card *CardInstance = this.state.getMyCard(this.dragging_card)
+            
+            if me && !me.sent_done && card && me.mana >= card.cost && allowed(card.traits.usage, this.state.phase.kind) {
+                
+                switch card.kind {
+                case CardKind::CREATURE
+                    // If creature
+                    rightof_network_id usize = 0
+                    
+                    if me.board.length != 0 {
+                        this.getMyBoardCardPositions(def card_positions <CardPosition> List)
+                        
+                        each CardPosition in card_positions {
+                            if it.x < x {
+                                rightof_network_id = me.board.getPointer(idx).network_id
+                                if rightof_network_id == 0, print("WARNING: CardGame.release() when placing card, was placed right of a card with network_id 0")
+                            }
+                        }
+                    }
+                    
+                    gamedata.manager.writeOutgoing(gamedata.player_name + "@spawn ~ " + card.name + " rightof " + toString(rightof_network_id) + "\n")
+                    me.mana -= card.cost
+                    this.state.getRidOfMyCardInHand(this.dragging_card)
+                case CardKind::SPELL
+                    // If spell
+                    target CardNetworkID = 0
+                    
+                    if card.traits.requires_target {
+                        this.getBoardCardPositions(def network_ids <CardNetworkID> List, def card_positions <CardPosition> List)
+                        each CardPosition in card_positions, if it.intersecting(x, y), target = network_ids.get(idx); break
+                    }
+                    
+                    unless card.traits.requires_target && target == 0 {
+                        // Play spell
+                        gamedata.manager.writeOutgoing(gamedata.player_name + "@play " + card.name + " " + toString(target) + " `\n")
+                        me.mana -= card.cost
+                        this.state.getRidOfMyCardInHand(this.dragging_card)
+                    }
+                }
+                
+                if me.mana < 0 {
+                    print("ERROR: CardGame.release(): when placing card, me.mana fell negative")
+                    me.mana = 0
+                }
+            }
+        }
+        
+        if this.state.phase.kind == PhaseKind::ATTACK && this.with_aggressor != 0 && me && !me.sent_done {
+            // Handle attack order
+            victim_card *CardInstance = this.getOpponentCardUnderneath(x, y)
+            if victim_card {
+                this.attack_orders.add(attackOrder(this.with_aggressor, victim_card.network_id))
+                this.attack_orders.enforceMaxAttacks(this.with_aggressor, 1)
+            } else {
+                this.attack_orders.enforceMaxAttacks(this.with_aggressor, 0)
+            }
+        }
+        
+        // Stop dragging any cards we're dragging
+        this.dragging_card = 0
+        
+        // Stop dragging any attack orders we're dragging
+        this.with_aggressor = 0
+    }
+    
+    func char(character uint) {}
+    
+    func key(key, scancode, action, mods int) {
+        if key == GLFW_KEY_W, this.experimental_value += 0.01f
+        if key == GLFW_KEY_S, this.experimental_value -= 0.01f
+        
+        #if CardGame_backslash_to_show_pending_actions
+        if key == GLFW_KEY_BACKSLASH && action == GLFW_PRESS {
+            pthread_mutex_lock(&gamedata.interpreter.access_mutex)
+            defer pthread_mutex_unlock(&gamedata.interpreter.access_mutex)
+            
+            each agent ActionAgent in gamedata.interpreter.agents {
+                print("agent %:" % agent.name)
+                each Action in agent.actions, print(" => %" % it.command_text)
+            }
+        }
+        #end
+    }
+    
+    func handleActionsCallback(action *Action) successful {
+        // When unsuccessful, the agent's current and future actions will be postponed
+        action.apply(&this.state, &this.particles, def should_reschedule bool)
+        if should_reschedule, return false
+        return true
+    }
+    
+    func draw {
+        me *Player = this.state.getThisPlayer()
+        opponent *Player = this.state.getOpponent()
+        captMouseViewPosition(undef mouseX float, undef mouseY float)
+        
+        //captClearColor(captColor(139, 69, 19))
+        captDrawTexture(textures.background_brown, 0.0f, 0.0f, captViewWidth(), captViewHeight())
+        
+        notice_message String = gamedata.manager.getIsOnline() ? "" : "You are Offline"
+        
+        unless notice_message.empty() {
+            stride float = 14.0f / 7.0f * 6.0f
+            textWidth float = stride * notice_message.length as float
+            text Text = text(notice_message)
+            text.draw(captViewWidth() / 2.0f - textWidth / 2.0f, captViewHeight() / 2.0f - 14.0f / 2.0f)
+            text.destroy()
+            return
+        }
+        
+        center_x float = captViewWidth() / 2.0f
+        center_y float = captViewHeight() / 2.0f
+        card_vertical_distance float = MANA_HEIGHT / 2.0f + MANA_PADDING + CARD_HEIGHT / 2.0f
+        heart_vertical_distance float = card_vertical_distance + CARD_HEIGHT / 2.0f + HEART_HEIGHT / 2.0f + HEART_PADDING
+        enemy_hand_vertical_distance float = center_y
+        
+        if this.state.phase.kind == PhaseKind::ATTACK {
+            captDrawOpacity(0.5f)
+            if this.with_aggressor != 0 && this.getMyCardPositionFromNetworkID(this.with_aggressor, undef start CardPosition) {
+                end_x float = mouseX
+                end_y float = mouseY
+                
+                victim *CardInstance = this.getOpponentCardUnderneath(mouseX, mouseY)
+                if victim && this.getOpponentCardPositionFromNetworkID(victim.network_id, undef victim_position CardPosition) {
+                    end_x = victim_position.x
+                    end_y = victim_position.y
+                }
+                
+                drawLine(start.x, start.y, end_x, end_y, 8.0f, EndCapStyle::ROUND, &textures.attack_line)
+            }
+            
+            each AttackOrder in this.attack_orders {
+                if this.getMyCardPositionFromNetworkID(it.aggressor, undef start CardPosition) && this.getOpponentCardPositionFromNetworkID(it.victim, undef end CardPosition) {
+                    drawLine(start.x, start.y, end.x, end.y, 4.0f, EndCapStyle::ROUND, &textures.attack_line)
+                }
+            }
+            captDrawOpacity(1.0f)
+        }
+        
+        if this.state.phase.kind == PhaseKind::BATTLE && this.playing_attack_order.has {
+            start, end CardPosition
+            
+            has_start bool = this.getMyCardPositionFromNetworkID(this.playing_attack_order.getPointer().aggressor, &start) ||
+                    this.getOpponentCardPositionFromNetworkID(this.playing_attack_order.getPointer().aggressor, &start)
+            
+            has_end bool = this.getMyCardPositionFromNetworkID(this.playing_attack_order.getPointer().victim, &end) ||
+                    this.getOpponentCardPositionFromNetworkID(this.playing_attack_order.getPointer().victim, &end)
+            
+            if has_start && this.animated_attack_line_x == 0.0f && this.animated_attack_line_y == 0.0f {
+                this.animated_attack_line_x = start.x
+                this.animated_attack_line_y = start.y
+            }
+            
+            if has_end {
+                this.animated_attack_line_x = (this.animated_attack_line_x * 9.0f + end.x) / 10.0f
+                this.animated_attack_line_y = (this.animated_attack_line_y * 9.0f + end.y) / 10.0f
+            }
+            
+            if has_start && has_end {
+                captDrawOpacity(0.5f)
+                drawLine(start.x, start.y, this.animated_attack_line_x, this.animated_attack_line_y, 4.0f, EndCapStyle::ROUND, &textures.attack_line)
+                captDrawOpacity(1.0f)
+            }
+        }
+        
+        this.drawOpponentsHand()
+        this.drawOpponentsBoard()
+        this.drawMyBoard()
+        
+        this.drawHearts(center_x, center_y - heart_vertical_distance, opponent ? opponent.hearts : 0)
+        this.drawMana(center_x, center_y, me && me.mana >= 0 ? me.mana : 0)
+        this.drawHearts(center_x, center_y + heart_vertical_distance, me ? me.hearts : 0)
+        this.drawMyHand()
+        
+        if this.alert.has,
+            this.alert.getPointer().draw()
+        
+        if this.show_end_turn_button {
+            drawButton("end turn", this, func &getEndTurnButtonPosition(*CardGame, *float, *float), this.is_end_turn_button_hovered)
+        }
+    }
+    
+    func drawMyHand {
+        me *Player = this.state.getThisPlayer()
+        this.getMyHandCardPositions(def card_positions <CardPosition> List)
+        
+        drawing_order <usize> List
+        
+        repeat card_positions.length {
+            smallest_idx usize = 0
+            smallest_scale float = 1000.0f
+            each CardPosition in static card_positions {
+                if drawing_order.contains(idx), continue
+                if it.scale < smallest_scale {
+                    smallest_idx = idx
+                    smallest_scale = it.scale
+                }
+            }
+            drawing_order.add(smallest_idx)
+        }
+        
+        each card_idx usize in static drawing_order {
+            instance *CardInstance = me.hand.getPointer(card_idx)
+            
+            if this.dragging_card == instance.instance_id {
+                // If the card is being dragged, draw it where it's being dragged
+                captMouseViewPosition(undef mouseX float, undef mouseY float)
+                this.drawCard(instance, mouseX, mouseY, 1.0f /*this.dragging_card_scale*/)
+                continue
+            }
+            
+            position *CardPosition = card_positions.getPointer(card_idx)
+            this.drawCard(instance, position.x, position.y, position.scale)
+        }
+    }
+    
+    func drawOpponentsHand {
+        opponent *Player = this.state.getOpponent()
+        unless opponent, return
+        
+        hand_count usize = opponent.hand.length
+        
+        x float = captViewWidth() / 2.0f - ((hand_count - 1) as float * CARD_XADVANCE + CARD_WIDTH) / 2.0f + CARD_WIDTH / 2.0f
+        y float = 0.0f
+        
+        repeat hand_count {
+            drawCentered(textures.standard_card_back, x, y, CARD_WIDTH, CARD_HEIGHT)
+            x += CARD_WIDTH + CARD_PADDING
+        }
+    }
+    
+    func drawMyBoard {
+        me *Player = this.state.getThisPlayer()
+        unless me, return
+        
+        captMouseViewPosition(undef mouseX float, undef mouseY float)
+        this.getMyBoardCardPositions(def card_positions <CardPosition> List)
+        
+        each CardPosition in card_positions {
+            if glfwGetMouseButton(_captain_window, GLFW_MOUSE_BUTTON_2) == GLFW_PRESS && it.intersecting(mouseX, mouseY) {
+                this.drawCard(me.board.getPointer(idx), it.x, it.y, it.scale)
+            } else {
+                this.drawCharacter(me.board.getPointer(idx), it)
+            }
+        }
+    }
+    
+    func drawOpponentsBoard {
+        opponent *Player = this.state.getOpponent()
+        unless opponent, return
+        
+        captMouseViewPosition(undef mouseX float, undef mouseY float)
+        this.getOpponentsBoardCardPositions(def card_positions <CardPosition> List)
+        
+        each CardPosition in card_positions {
+            if glfwGetMouseButton(_captain_window, GLFW_MOUSE_BUTTON_2) == GLFW_PRESS && it.intersecting(mouseX, mouseY) {
+                this.drawCard(opponent.board.getPointer(idx), it.x, it.y, it.scale)
+            } else {
+                this.drawCharacter(opponent.board.getPointer(idx), it)
+            }
+        }
+    }
+    
+    func getMyHandCardPositions(out card_positions *<CardPosition> List) {
+        me *Player = this.state.getThisPlayer()
+        unless me, return
+        
+        captMouseViewPosition(undef mouseX float, undef mouseY float)
+        
+        hand_count usize = me.hand.length
+        if hand_count == 0, return
+        
+        x float = captViewWidth() / 2.0f - ((hand_count - 1) as float * CARD_XADVANCE + CARD_WIDTH) / 2.0f + CARD_WIDTH / 2.0f
+        y float = captViewHeight() - CARD_HEIGHT / 6.0f - CARD_PADDING
+        
+        repeat hand_count {
+            mouse_distance_factor float = distance(mouseX + (mouseX - x) / 2.0f, mouseY, x, y)
+            if mouse_distance_factor < CARD_HEIGHT / 2.0f, mouse_distance_factor = CARD_HEIGHT / 2.0f
+            
+            scale float = mouse_distance_factor > CARD_HEIGHT ? 1.0f : 1.0f + (CARD_HEIGHT - mouse_distance_factor) as float / CARD_HEIGHT as float
+            y_offset float = mouse_distance_factor > CARD_HEIGHT ? 0.0f : scale * 0.6 * CARD_HEIGHT * (CARD_HEIGHT - mouse_distance_factor) as float / CARD_HEIGHT as float
+            
+            card_positions.add(cardPosition(x, y  - y_offset, y, scale))
+            x += CARD_WIDTH + CARD_PADDING
+        }
+    }
+    
+    func getMyBoardCardPositions(out card_positions *<CardPosition> List) {
+        me *Player = this.state.getThisPlayer()
+        unless me, return
+        
+        board_count usize = me.board.length
+        if board_count == 0, return
+        
+        x float = captViewWidth() / 2.0f - ((board_count - 1) as float * CARD_XADVANCE + CARD_WIDTH) / 2.0f + CARD_WIDTH / 2.0f
+        y float = captViewHeight() / 2.0f + (MANA_HEIGHT / 2.0f + MANA_PADDING + CARD_HEIGHT / 2.0f)
+        
+        repeat board_count {
+            card_positions.add(cardPosition(x, y, y, 1.0f))
+            x += CARD_WIDTH + CARD_PADDING
+        }
+    }
+    
+    func getOpponentsBoardCardPositions(out card_positions *<CardPosition> List) {
+        opponent *Player = this.state.getOpponent()
+        unless opponent, return
+        
+        board_count usize = opponent.board.length
+        if board_count == 0, return
+        
+        x float = captViewWidth() / 2.0f - ((board_count - 1) as float * CARD_XADVANCE + CARD_WIDTH) / 2.0f + CARD_WIDTH / 2.0f
+        y float = captViewHeight() / 2.0f - (MANA_HEIGHT / 2.0f + MANA_PADDING + CARD_HEIGHT / 2.0f)
+        
+        repeat board_count {
+            card_positions.add(cardPosition(x, y, y, 1.0f))
+            x += CARD_WIDTH + CARD_PADDING
+        }
+    }
+    
+    func drawCard(instance *CardInstance, x_focus, y_focus, scale float){
+        // NOTE: We can afford to call this ~50 times per frame
+        
+        top float = y_focus - scale * CARD_HEIGHT / 2.0f
+        left float = x_focus - scale * CARD_WIDTH / 2.0f
+        width float = scale * CARD_WIDTH
+        height float = scale * CARD_HEIGHT
+        
+        captDrawTexture(instance.getStandardCardTexture(), left, top, width, height)
+        
+        // Draw Cost
+        drawText(toString(instance.cost), left + width * 0.025, top + width * 0.028, textures.font_black, scale * 12.0f)
+        
+        // Draw Title
+        title_offset float = instance.title.first('\n'ub) != -1sl ? width * 0.05 : width * 0.09
+        drawText(instance.title, left + width * 0.25, top + title_offset, textures.font_black, scale * 4.0f)
+        
+        // Draw Picture
+        captDrawTexture(*instance.ct.portrait, left, top + scale * CARD_PICTURE_Y_OFFSET, width, scale * CARD_PICTURE_HEIGHT)
+        captDrawTexture(textures.picture_frame, left, top + scale * CARD_PICTURE_Y_OFFSET, width, scale * CARD_PICTURE_HEIGHT)
+        
+        // Draw Description
+        description_offset float = width * 0.79
+        drawText(instance.description, left + width * 0.05, top + description_offset, textures.font_black, scale * 4.0f)
+        
+        // Draw Offense
+        offense_texture *CaptTexture = instance.offense.getTexture()
+        if offense_texture {
+            captDrawTexture(*offense_texture, left + width * 0.04, top + height * 0.85, scale * CARD_ELEMENT_WIDTH, scale * CARD_ELEMENT_HEIGHT)
+            
+            // Draw Attack #
+            attack_string String = toString(instance.attack)
+            attack_number_alignment float = attack_string.length < 2 ? 2.5f : 0.0f
+            drawText(attack_string, left + width * 0.27 + scale * attack_number_alignment, top + height * 0.87, textures.font_black, scale * 8.0f)
+        }
+        
+        // Draw Defense
+        defense_texture *CaptTexture = instance.defense.getTexture()
+        if defense_texture {
+            captDrawTexture(*defense_texture, left + width - scale * CARD_ELEMENT_WIDTH - width * 0.04, top + height * 0.85, scale * CARD_ELEMENT_WIDTH, scale * CARD_ELEMENT_HEIGHT)
+            
+            // Draw Defense #
+            hp_string String = instance.hp <= 0 ? "0" : toString(instance.hp)
+            hp_number_alignment float = hp_string.length < 2 ? 3.5f : 0.0f
+            drawText(hp_string, left + width * 0.535 + scale * hp_number_alignment, top + height * 0.87, textures.font_black, scale * 8.0f)
+        }
+    }
+    
+    func drawCharacter(instance *CardInstance, position CardPosition) {
+        texture *CaptTexture = null
+        now double = glfwGetTime()
+        
+        if this.card_animations.hasCardAnimation(instance.network_id, undef animation CardAnimation) {
+            texture = animation.texture
+        } else {
+            texture = now % 1.0 < 0.5 ? instance.ct.stand1 : instance.ct.stand2
+        }
+        
+        status CardStatus = this.card_statuses.getFromNetworkID(instance.network_id)
+        has_died bool = status.is_dead
+        has_been_on_fire bool = status.is_on_fire
+        
+        if has_been_on_fire && !instance.traits.fire_resistant {
+            // Draw behind flames
+            drawCentered(textures.fire_debuff_hr, position.x, position.y, 2.0f * position.scale * CHARACTER_WIDTH, 2.0f * position.scale * CHARACTER_HEIGHT)
+        }
+        
+        if has_died, captDrawOpacity(0.5f)
+        drawCentered(*texture, position.x, position.y, position.scale * CHARACTER_WIDTH, position.scale * CHARACTER_HEIGHT)
+        if has_died, captDrawOpacity(1.0f)
+        
+        if has_been_on_fire {
+            // Draw in front fire
+            fire CaptTexture = now % 1.0 < 0.5 ? (now % 1.0 < 0.25 ? textures.fire1 : textures.fire2) : (now % 1.0 < 0.75 ? textures.fire3 : textures.fire4)
+            drawCentered(fire, position.x, position.y, position.scale * CHARACTER_WIDTH, position.scale * CHARACTER_HEIGHT)
+        }
+        
+        this.drawParticlesForCard(instance.network_id, position)
+    }
+    
+    func drawMana(center_x, center_y float, count int) {
+        if count < 0,  print("ERROR: CardGame.drawMana() got mana less than 0"); return
+        if count == 0, return
+        
+        total_width float = (count - 1) as float * MANA_XADVANCE + MANA_WIDTH
+        x_offset float = 0.0f - total_width / 2.0f
+        
+        if this.alert.has {
+            captDrawOpacity(this.alert.getPointer().getAmountAwayFromCenter())
+        }
+        
+        repeat count {
+            captDrawTexture(textures.mana, center_x + x_offset, center_y - MANA_HEIGHT / 2.0f, MANA_WIDTH, MANA_HEIGHT)
+            x_offset += MANA_XADVANCE
+        }
+        
+        captDrawOpacity(1.0f)
+    }
+    
+    func drawHearts(center_x, center_y float, count int) {
+        if count < 0,  print("ERROR: CardGame.drawHearts() got hearts less than 0"); return
+        if count == 0, return
+        
+        total_width float = (count - 1) as float * HEART_XADVANCE + HEART_WIDTH
+        x_offset float = 0.0f - total_width / 2.0f
+        
+        repeat count {
+            captDrawTexture(textures.heart, center_x + x_offset, center_y - HEART_HEIGHT / 2.0f, HEART_WIDTH, HEART_HEIGHT)
+            x_offset += HEART_XADVANCE
+        }
+    }
+    
+    func displayAlert(message String) {
+        this.alert.set(gameAlert(message))
+    }
+    
+    func getEndTurnButtonPosition(out x, y *float) {
+        *x = captViewWidth() - MAIN_MENU_BUTTON_WIDTH - 16.0f
+        *y = captViewHeight() - MAIN_MENU_BUTTON_HEIGHT - 16.0f
+    }
+    
+    func calculateWhetherEndTurnButtonIsHovered(mouseX, mouseY float) bool {
+        this.is_end_turn_button_hovered = isButtonHovered(this, func &getEndTurnButtonPosition(*CardGame, *float, *float), mouseX, mouseY)
+        return this.is_end_turn_button_hovered
+    }
+    
+    func getMyCardPositionFromNetworkID(network_id CardNetworkID, out position *CardPosition) successful {
+        // Brute force find position of one of our cards by network id
+        me *Player = this.state.getThisPlayer()
+        unless me, return false
+        
+        each CardInstance in me.board {
+            if it.network_id == network_id {
+                this.getMyBoardCardPositions(def card_positions <CardPosition> List)
+                *position = card_positions.get(idx)
+                return true
+            }
+        }
+        
+        return false
+    }
+    
+    func getOpponentCardPositionFromNetworkID(network_id CardNetworkID, out position *CardPosition) successful {
+        // Brute force find position of one of our cards by network id
+        opponent *Player = this.state.getOpponent()
+        unless opponent, return false
+        
+        each CardInstance in opponent.board {
+            if it.network_id == network_id {
+                this.getOpponentsBoardCardPositions(def card_positions <CardPosition> List)
+                *position = card_positions.get(idx)
+                return true
+            }
+        }
+        
+        return false
+    }
+    
+    func getBoardCardPositions(out network_ids *<CardNetworkID> List, out positions *<CardPosition> List) {
+        me *Player = this.state.getThisPlayer()
+        opponent *Player = this.state.getOpponent()
+        
+        this.getMyBoardCardPositions(def my_positions <CardPosition> List)
+        this.getOpponentsBoardCardPositions(def opponents_positions <CardPosition> List)
+        
+        if me, each CardPosition in my_positions {
+            network_ids.add(me.board.getPointer(idx).network_id)
+            positions.add(it)
+        }
+        
+        if opponent, each CardPosition in opponents_positions {
+            network_ids.add(opponent.board.getPointer(idx).network_id)
+            positions.add(it)
+        }
+    }
+    
+    func getOpponentCardUnderneath(mouseX, mouseY float) *CardInstance {
+        opponent *Player = this.state.getOpponent()
+        unless opponent, return null
+        
+        this.getOpponentsBoardCardPositions(def card_positions <CardPosition> List)
+        
+        each CardPosition in card_positions {
+            if it.intersecting(mouseX, mouseY), return opponent.board.getPointer(idx)
+        }
+        
+        return null
+    }
+    
+    func endTurn {
+        me *Player = this.state.getThisPlayer()
+        if me == null || me.done || me.sent_done, return
+        
+        if this.state.phase.kind == PhaseKind::ATTACK {
+            // If ending attack phase, send attack orders for battlephase
+            each AttackOrder in this.attack_orders,
+                gamedata.manager.writeOutgoing(gamedata.player_name + "@attack " + toString(it.aggressor) + " " + toString(it.victim) + " `\n")
+        }
+        
+        gamedata.manager.writeOutgoing(gamedata.player_name + "@end\n")
+        me.sent_done = true
+        
+        this.show_end_turn_button = false
+    }
+    
+    func drawParticlesForCard(network_id CardNetworkID, position CardPosition) {
+        each *CardParticle in this.particles {
+            if it.network_id == network_id {
+                drawCentered(*it.texture, position.x, position.y, position.scale * it.width, position.scale * it.height)
+            }
+        }
+    }
+    
+    func playAnimation(animation *CardAnimation) {
+        // NOTE: Takes ownership of 'animation *CardAnimation'
+        animation.start = glfwGetTime()
+        this.card_animations.add(animation)
+    }
+    
+    func scheduleAnimation(animation *CardAnimation, from_now_in_seconds double) {
+        // NOTE: Takes ownership of 'animation *CardAnimation'
+        this.scheduled_animations.add(scheduledCardAnimation(animation, glfwGetTime() + from_now_in_seconds))
+    }
+    
+    func clearAnimations {
+        each *CardAnimation in this.card_animations {
+            it.deleteChildren()
+            delete it
+        }
+        this.card_animations.length = 0
+    }
+    
+    func clearScheduledAnimations {
+        each ScheduledCardAnimation in this.scheduled_animations {
+            it.animation.deleteChildren()
+            delete it.animation
+        }
+        this.scheduled_animations.length = 0
+    }
+    
+    func clearAllAnimations {
+        this.clearAnimations()
+        this.clearScheduledAnimations()
+    }
+    
+    func playScheduledAnimations {
+        each ScheduledCardAnimation in this.scheduled_animations {
+            unless it.shouldStart(), continue
+            
+            this.playAnimation(it.animation)
+            this.scheduled_animations.remove(idx--)
+        }
+    }
+    
+    func playAttackAnimation(aggressor *CardInstance, victim *CardInstance, did_attack_work successful) {
+        this.scheduleAnimation(aggressor.newAttackAnimation(), 0.5)
+        this.scheduleAnimation(did_attack_work ? (victim.isDead() ? victim.newDieAnimation() : victim.newHurtAnimation()) : victim.newMockAnimation(), 1.5)
+    }
+    
+    func clearParticles {
+        each *CardParticle in this.particles {
+            it.deleteChildren()
+            delete it
+        }
+        this.particles.length = 0
+    }
+}

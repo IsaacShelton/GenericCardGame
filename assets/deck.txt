@@ -1,0 +1,76 @@
+confused_alien
+ creature
+ title Confused Alien
+ description The alien is confused. Like very confused. So confused
+ cost 3
+ hp 6
+ attack 4
+ offense magic
+ defense flesh
+ developer
+asteroid
+ creature
+ title Asteroid
+ description It's a giant asteroid
+ cost 2
+ hp 6
+ attack 2
+ offense sharp
+ defense shielded
+ developer
+stick_guy
+ creature
+ title Stick Guy
+ description When placed, adjacent creatures gain permanent +1 Attack
+ cost 1
+ hp 3
+ attack 2
+ offense sharp
+ defense flesh
+ battlecry-adjacent 1
+shield_guy
+ creature
+ title Shield Guy
+ description Shield x1
+ cost 1
+ hp 3
+ attack 3
+ offense blunt
+ defense shielded
+ shield 1
+on_fire_guy
+ creature
+ title On-Fire Guy
+ description When this card attacks, the target has a 50% chance of being lit on fire
+ cost 1
+ hp 2
+ attack 3
+ offense magic
+ defense spectral
+ on-fire
+ spreads-fire 50
+ fire-resistant
+popup_shield
+ spell
+ title Pop-Up Shield
+ description Gives a creature +1 Shield
+ cost 2
+ usage prebattle
+ applies-shield 1
+reinforcements
+ spell
+ title Reinforcements
+ description Draws 3 creature cards
+ cost 4
+ usage spawnphase
+ draw-immediately 3
+slime
+ creature
+ title Slime
+ description Invulnerable to blunt damage
+ cost 2
+ hp 7
+ attack 2
+ offense blunt
+ defense flesh
+ invulnerable-to-blunt

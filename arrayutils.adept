@@ -1,0 +1,7 @@
+
+import 'main.adept'
+
+func contains(this *<String> Array, needle String) bool {
+    each String in static *this, if it == needle, return true
+    return false
+}

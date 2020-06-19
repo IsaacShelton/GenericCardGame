@@ -1,0 +1,33 @@
+
+#default optional_warn_no_value true
+
+struct <$T> Optional (value $T, has bool)
+
+verbatim func __defer__(this *<$T> Optional) {
+    if this.has, this.value.?__defer__()
+}
+
+func set(this *<$T> Optional, value POD $T) {
+    if this.has, this.rid()
+    this.value = POD value
+    this.has = true
+}
+
+func get(this *<$T> Optional) $T {
+    #if optional_warn_no_value
+    unless this.has, printf('ERROR: <$T> Optional.get() called when no value exists\n')
+    #end
+    return this.value
+}
+
+func getPointer(this *<$T> Optional) *$T {
+    #if optional_warn_no_value
+    unless this.has, printf('ERROR: <$T> Optional.getPointer() called when no value exists\n')
+    #end
+    return &this.value
+}
+
+func rid(this *<$T> Optional) {
+    this.__defer__()
+    this.has = false
+}

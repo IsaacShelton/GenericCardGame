@@ -1,0 +1,37 @@
+
+import 'main.adept'
+
+struct ActionAgent (name String, actions <Action> List) {
+    /*
+    func bubbleSpellsToTop {
+        bubble_destination usize = 0
+        
+        each Action in this.actions {
+            at_symbol long = it.command_text.first('@'ub)
+            unless at_symbol >= 0, break
+            
+            if "play" == it.command_text.range(at_symbol, it.command_text.length).getUntilAsView(' 'ub) {
+                // Bubble up play spell command
+                action Action = this.actions.getPointer(idx).commit()
+                this.actions.remove(idx)
+                this.actions.insert(bubble_destination++, action.commit())
+            }
+        }
+    }
+    */
+}
+
+func addAgent(this *<ActionAgent> List, name String) *ActionAgent {
+    agent *ActionAgent = this.add()
+    unless agent, return null
+    
+    agent.name = name.clone()
+    // agent.actions left blank
+    return agent
+}
+
+/*
+func bubbleSpellsToTop(this *<ActionAgent> List) {
+    each ActionAgent in static *this, it.bubbleSpellsToTop()
+}
+*/

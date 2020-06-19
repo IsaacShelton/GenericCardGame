@@ -1,0 +1,54 @@
+
+import 'main.adept'
+
+struct CardTraits (
+    developer bool,
+    usage CardUsage,
+    
+    battlecry_adjacent int,     // (creature only)
+    shield int,                 // (creature only)
+    on_fire bool,               // (creature only)
+    spreads_fire int,           // (creature only)
+    fire_resistant bool,        // (creature only)
+    invulnerable_to_blunt bool, // (creature only)
+    applies_shield int,         // (spell only)
+    draw_immediately int,       // (spell only)
+    requires_target bool        // (spell only)
+) {
+    func defaults {
+        this.developer = false
+        this.usage = CardUsage::SPAWNPHASE
+        this.battlecry_adjacent = 0
+        this.shield = 0
+        this.on_fire = false
+        this.spreads_fire = 0
+        this.fire_resistant = false
+        this.invulnerable_to_blunt = false
+        this.applies_shield = 0
+        this.draw_immediately = 0
+        this.requires_target = false
+    }
+    
+    func toString String {
+        result String = ""
+        
+        if this.developer,               result.append("developer ")
+        result.append("usage: " + toString(this.usage) + " ")
+        
+        // Creature only
+        if this.battlecry_adjacent != 0, result.append("battlecry-adjacent:% " % this.battlecry_adjacent)
+        if this.shield != 0,             result.append("shield:% " % this.shield)
+        if this.on_fire,                 result.append("on-fire ")
+        if this.spreads_fire != 0,       result.append("spreads-fire:% " % this.spreads_fire)
+        if this.fire_resistant,          result.append("fire-resistant ")
+        if this.invulnerable_to_blunt,   result.append("invulnerable-to-blunt ")
+        
+        // Spells only
+        if this.applies_shield,          result.append("applies-shield:% " % this.applies_shield)
+        if this.draw_immediately,        result.append("draw-immediately:% " % this.draw_immediately)
+        if this.requires_target,         result.append("requires-target ")
+        
+        result.trim()
+        return result.commit()
+    }
+}

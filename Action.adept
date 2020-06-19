@@ -1,0 +1,180 @@
+
+import 'main.adept'
+
+// isaac@spawn ~ fire_guy rightof 0
+// isaac@play smite 2
+// andy@spawn ~ ice_guy rightof 0
+// isaac@end
+// andy@end
+
+// (attackphase)
+// isaac@attack 3 2 99
+// isaac@attack 5 2 99
+// isaac@end
+// andy@play smite 5 99
+// andy@attack 2 5 99
+// andy@end
+
+// (battlephase)
+// (drawphase)
+// isaac@draw 3
+// andy@draw 3
+
+// (next spawn phase)
+
+// isaac@spawn ~ fire_guy rightof 0
+// isaac@play popup_shield 3 99
+// andy@spawn ~ ice_guy rightof 0
+// isaac@end
+
+struct Action (command_text String) {
+    func commit() Action {
+        a POD Action
+        a.command_text = this.command_text.commit()
+        return a
+    }
+    
+    func clone() Action {
+        a POD Action
+        a.command_text = this.command_text.clone()
+        return a
+    }
+    
+    func __assign__(other POD Action) {
+        this.command_text = other.command_text
+    }
+    
+    func apply(inout state *GameState, out particles *<*CardParticle> List, out should_reschedule *bool) successful {
+        *should_reschedule = false
+        
+        at_symbol long = this.command_text.first('@'ub)
+        if at_symbol == -1, return false
+        
+        subject_name StringView = this.command_text.span(0, at_symbol)
+        rest StringView = this.command_text.range(at_symbol, this.command_text.length)
+        tokens <String> List = rest.split(" ")
+        
+        subject *Player = state.getPlayer(subject_name)
+        
+        if tokens.get(0) == "@end" {
+            if tokens.length != 1 {
+                print("ERROR: Action.apply() on @end command with mismatching arity -> '%'" % this.command_text)
+                return false
+            }
+            
+            if subject.done {
+                *should_reschedule = true
+                return false
+            }
+            
+            subject.done = true
+            return true
+        } else if tokens.get(0) == "@spawn" {            
+            if tokens.length != 5 {
+                print("ERROR: Action.apply() on @spawn command with mismatching arity -> '%'" % this.command_text)
+                return false
+            }
+            
+            network_object_id StringView = tokens.get(1)
+            card_blueprint_identifier StringView = tokens.get(2)
+            position_relation StringView = tokens.get(3)
+            position_reference StringView = tokens.get(4)
+            
+            unless network_object_id.isIntegerLike() {
+                print("ERROR: Action.apply() on @spawn command got position reference as not an integer -> '%'" % this.command_text)
+                return false
+            }
+            
+            unless position_relation == "leftof" || position_relation == "rightof" {
+                print("ERROR: Action.apply() on @spawn command got position relation not 'leftof' or 'rightof' -> '%'" % this.command_text)
+                return false
+            }
+            
+            unless position_reference.isIntegerLike() {
+                print("ERROR: Action.apply() on @spawn command got position reference as not an integer -> '%'" % this.command_text)
+                return false
+            }
+            
+            subject.spawnCard(card_blueprint_identifier, network_object_id.toUlong(), position_relation, position_reference.toUlong(), particles)
+            
+            if subject && subject != state.getThisPlayer() {
+                // Reduce the number of dummy cards in the opponents hand
+                subject.hand.reduce(1)
+            }
+            return true
+        } else if tokens.get(0) == "@attack" {            
+            if tokens.length != 4 {
+                print("ERROR: Action.apply() on @attack command with mismatching arity -> '%'" % this.command_text)
+                return false
+            }
+            
+            aggressor StringView = tokens.get(1)
+            victim StringView = tokens.get(2)
+            randomness StringView = tokens.get(3)
+            
+            unless aggressor.isIntegerLike() {
+                print("ERROR: Action.apply() on attack command got aggressor as not an integer -> '%'" % this.command_text)
+                return false
+            }
+            
+            unless victim.isIntegerLike() {
+                print("ERROR: Action.apply() on attack command got victim as not an integer -> '%'" % this.command_text)
+                return false
+            }
+            
+            unless randomness.isIntegerLike() {
+                print("ERROR: Action.apply() on attack command got randomness as not an integer -> '%'" % this.command_text)
+                return false
+            }
+            
+            state.attack_orders.add(attackOrder(aggressor.toUlong(), victim.toUlong(), randomness.toUlong()))
+            return true
+        } else if tokens.get(0) == "@play" {            
+            if tokens.length != 4 {
+                print("ERROR: Action.apply() on @play command with mismatching arity -> '%'" % this.command_text)
+                return false
+            }
+            
+            blueprint_name StringView = tokens.get(1)
+            victim StringView = tokens.get(2)
+            randomness StringView = tokens.get(3)
+            
+            unless subject {
+                print("ERROR: Action.apply() on play command with subject that doesn't exist -> '%'" % this.command_text)
+                return false
+            }
+            
+            blueprint *CardBlueprint = gamedata.deck.getCardBlueprint(blueprint_name)
+            unless blueprint {
+                print("ERROR: Action.apply() on play command got card that doesn't exist -> '%'" % this.command_text)
+                return false
+            }
+            
+            unless victim.isIntegerLike() {
+                print("ERROR: Action.apply() on play command got victim as not an integer -> '%'" % this.command_text)
+                return false
+            }
+            
+            unless randomness.isIntegerLike() {
+                print("ERROR: Action.apply() on play command got randomness as not an integer -> '%'" % this.command_text)
+                return false
+            }
+            
+            state.spell_orders.add(spellOrder(subject.player_id, blueprint, victim.toUlong(), randomness.toUlong()))
+            return true
+        } else {
+            print("WARNING: Unrecognized gameplay action '%'" % this.command_text)
+            return false
+        }
+        
+        return true
+    }
+}
+
+func action(command_text String) Action {
+    command_text.make()
+    
+    a POD Action
+    a.command_text = command_text.commit()
+    return a
+}

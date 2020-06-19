@@ -1,0 +1,35 @@
+
+enum OffenseKind (NONE, SHARP, BLUNT, MAGIC)
+
+struct Offense (kind OffenseKind) {
+    func toString String {
+        switch this.kind {
+        case OffenseKind::SHARP, return "sharp"
+        case OffenseKind::BLUNT, return "blunt"
+        case OffenseKind::MAGIC, return "magic"
+        }
+        return "none"
+    }
+    
+    func getTexture *CaptTexture {
+        switch this.kind {
+        case OffenseKind::SHARP, return &textures.sharp
+        case OffenseKind::BLUNT, return &textures.blunt
+        case OffenseKind::MAGIC, return &textures.magic
+        }
+        return null
+    }
+}
+
+func offense(kind OffenseKind) Offense {
+    offense POD Offense
+    offense.kind = kind
+    return offense
+}
+
+func offense(kind_name String) Offense {
+    if      kind_name == "sharp", return offense(OffenseKind::SHARP)
+    else if kind_name == "blunt", return offense(OffenseKind::BLUNT)
+    else if kind_name == "magic", return offense(OffenseKind::MAGIC)
+    return offense(OffenseKind::NONE)
+}
