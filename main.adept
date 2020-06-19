@@ -28,7 +28,16 @@ import 'strings.adept'
 import 'csignal.adept'
 import 'lines.adept'
 
-func main {
+func main(argc int, argv **ubyte) {
+    repeat static argc - 1 {
+        arg String = stringConstant(argv[idx + 1])
+        if      arg.startsWith("--host="), gamedata.override_host = arg.decapitated(7)
+        else if arg.startsWith("--port="), gamedata.override_port = arg.decapitated(7)
+    }
+    
+    unless gamedata.override_host.empty(), print("OVERRIDE: override_host=%" % gamedata.override_host)
+    unless gamedata.override_port.empty(), print("OVERRIDE: override_port=%" % gamedata.override_port)
+    
     captOnSetup(func &onSetup)
     captOnExit(func &onExit)
     captOnStep(func &onStep, 60)

@@ -14,6 +14,8 @@ struct GameData (
     scene *Scene,
     scenes <Scene> List,
     assets_folder String,
+    override_host String,
+    override_port String,
     listings <RoomListing> List,
     manager NetworkManager,
     interpreter NetworkInterpreter,
@@ -50,7 +52,7 @@ struct GameData (
         this.manager.initialize(1024)
         this.setScene('mainmenu')
         
-        unless this.manager.connect("localhost", 9999, &this.error_message) {
+        unless this.manager.connect(this.override_host.empty() ? "localhost" : this.override_host, this.override_port.empty() ? 9999 : this.override_port.toInt(), &this.error_message) {
             print("Failed to connect to server")
             print(this.error_message)
             return
