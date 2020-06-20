@@ -18,6 +18,9 @@ import 'posix/pthread.adept'
     func validSocket(socket Socket) bool = socket != INVALID_SOCKET
     func ioctlSocket(socket Socket, cmd uint, argp *IOCtlOpt) int =
         ioctlsocket(socket, cmd, argp)
+    
+    func write(socket SOCKET, buffer ptr, length usize) int = send(socket, buffer, length as int, 0)
+    func read(socket SOCKET, buffer ptr, length usize) int = recv(socket, buffer, length as int, 0)
 #else
     import 'unix/netdb.adept'
     import 'unix/fd_set.adept'
@@ -55,7 +58,8 @@ func cleanupNetworking {
 }
 
 struct NetworkManager (
-    sockfd, port int,
+    sockfd Socket,
+    port int,
     serveraddr sockaddr_in,
     server *hostent,
     hostname *ubyte,
@@ -92,7 +96,7 @@ struct NetworkManager (
         defer delete host
 
         this.sockfd = socket(AF_INET, SOCK_STREAM, 0)
-        if this.sockfd < 0 {
+        unless validSocket(this.sockfd) {
             if errorMessage, *errorMessage = "socket() failed"
             return false
         }
@@ -105,7 +109,7 @@ struct NetworkManager (
 
         memset(&this.serveraddr, 0, sizeof sockaddr_in)
         this.serveraddr.sin_family = AF_INET
-        memcpy(this.server.h_addr_list[0], &this.serveraddr.sin_addr.s_addr, this.server.h_length)
+        memcpy(&this.serveraddr.sin_addr.s_addr, this.server.h_addr_list[0], this.server.h_length)
         this.serveraddr.sin_port = htons(port)
         
         flags int = 1
@@ -187,7 +191,12 @@ struct NetworkManager (
             
             errorcode int = errno
             if n < 0 {
-                if errorcode != EAGAIN {
+                #if __windows__
+                read_error bool = WSAGetLastError() != WSAEWOULDBLOCK
+                #else
+                read_error bool = errno != EAGAIN
+                #end
+                if read_error {
                     printf('Error: read() failed %d\n', errorcode)
                     this.setIsOnline(false)
                     return null
