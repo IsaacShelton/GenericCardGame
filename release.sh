@@ -1,3 +1,4 @@
+#!/bin/bash
 rm -rf NAME.txt
 mkdir ~/Desktop/GCGRELEASEOUT
 cp main ~/Desktop/GCGRELEASEOUT/
