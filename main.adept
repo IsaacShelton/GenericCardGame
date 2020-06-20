@@ -5,11 +5,9 @@
 pragma compiler_version '2.3'
 pragma null_checks
 
-#default fullscreen      false
+#default fullscreen      true
 #default monitor_fps     false
 #default ignore_NAME_txt false
-
-#set ignore_NAME_txt true
 
 import '2.3/basics.adept'
 import '2.3/captain.adept'
