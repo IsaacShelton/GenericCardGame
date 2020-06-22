@@ -1,13 +1,14 @@
 
 import 'main.adept'
 
-struct CardStatus (network_id CardNetworkID, is_dead bool, is_on_fire bool)
+struct CardStatus (network_id CardNetworkID, is_dead, is_on_fire, is_sad bool)
 
 func cardStatus(instance *CardInstance) CardStatus {
     status CardStatus
     status.network_id = instance.network_id
     status.is_dead = instance.isDead()
     status.is_on_fire = instance.traits.on_fire
+    status.is_sad = instance.isSad()
     return status
 }
 
@@ -16,6 +17,7 @@ func cardStatus CardStatus {
     status.network_id = 0
     status.is_dead = false
     status.is_on_fire = false
+    status.is_sad = false
     return status
 }
 

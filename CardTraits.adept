@@ -11,9 +11,15 @@ struct CardTraits (
     spreads_fire int,           // (creature only)
     fire_resistant bool,        // (creature only)
     invulnerable_to_blunt bool, // (creature only)
+    must_be_attacked_last bool, // (creature only)
+    resistant_over int,         // (creature only)
+    separation bool,            // (creature only)
+    gains_hp int,               // (creature only)
+    
     applies_shield int,         // (spell only)
     draw_immediately int,       // (spell only)
-    requires_target bool        // (spell only)
+    requires_target bool,       // (spell only)
+    insta_kill      bool        // (spell only)
 ) {
     func defaults {
         this.developer = false
@@ -24,9 +30,15 @@ struct CardTraits (
         this.spreads_fire = 0
         this.fire_resistant = false
         this.invulnerable_to_blunt = false
+        this.must_be_attacked_last = false
+        this.resistant_over = 0
+        this.separation = false
+        this.gains_hp = 0
+        
         this.applies_shield = 0
         this.draw_immediately = 0
         this.requires_target = false
+        this.insta_kill = false
     }
     
     func toString String {
@@ -42,11 +54,16 @@ struct CardTraits (
         if this.spreads_fire != 0,       result.append("spreads-fire:% " % this.spreads_fire)
         if this.fire_resistant,          result.append("fire-resistant ")
         if this.invulnerable_to_blunt,   result.append("invulnerable-to-blunt ")
+        if this.must_be_attacked_last,   result.append("must-be-attacked-last ")
+        if this.resistant_over != 0,     result.append("resistant-over:% " % this.resistant_over)
+        if this.separation,              result.append("separation ")
+        if this.gains_hp != 0,           result.append("gains-hp:% " % this.gains_hp)
         
         // Spells only
         if this.applies_shield,          result.append("applies-shield:% " % this.applies_shield)
         if this.draw_immediately,        result.append("draw-immediately:% " % this.draw_immediately)
         if this.requires_target,         result.append("requires-target ")
+        if this.insta_kill,              result.append("insta-kill ")
         
         result.trim()
         return result.commit()

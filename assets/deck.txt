@@ -1,43 +1,66 @@
-confused_alien
+lettuce_guy
  creature
- title Confused Alien
- description The alien is confused. Like very confused. So confused
- cost 3
+ title Lettuce Guy
+ description Gains +1 HP every turn
+ cost 2
+ attack 3
  hp 6
- attack 4
- offense magic
+ offense sharp
  defense flesh
- developer
-asteroid
+ gains-hp 1
+smite
+ spell
+ title Smite
+ description Instantly kill a creature. No exceptions
+ cost 4
+ usage prebattle
+ requires-target
+ insta-kill
+josh
  creature
- title Asteroid
- description It's a giant asteroid
+ title Josh
+ description immune to all damage greater than 4
  cost 2
  hp 6
- attack 2
- offense sharp
- defense shielded
- developer
-stick_guy
- creature
- title Stick Guy
- description When placed, adjacent creatures gain permanent +1 Attack
- cost 1
- hp 3
- attack 2
- offense sharp
- defense flesh
- battlecry-adjacent 1
-shield_guy
- creature
- title Shield Guy
- description Shield x1
- cost 1
- hp 3
- attack 3
+ attack 4
  offense blunt
  defense shielded
- shield 1
+ resistant-over 4
+jeff
+ creature
+ title Jeff
+ description Must be attacked last.
+ cost 4
+ hp 9
+ attack 9
+ offense magic
+ defense flesh
+ must-be-attacked-last
+slime
+ creature
+ title Slime
+ description Invulnerable to blunt damage
+ cost 2
+ hp 7
+ attack 2
+ offense blunt
+ defense flesh
+ invulnerable-to-blunt
+reinforcements
+ spell
+ title Reinforcements
+ description Draws 3 creature cards
+ cost 4
+ usage spawnphase
+ draw-immediately 3
+popup_shield
+ spell
+ title Pop-Up Shield
+ description Gives a creature +1 Shield
+ cost 2
+ usage prebattle
+ applies-shield 1
+ requires-target
 on_fire_guy
  creature
  title On-Fire Guy
@@ -50,27 +73,45 @@ on_fire_guy
  on-fire
  spreads-fire 50
  fire-resistant
-popup_shield
- spell
- title Pop-Up Shield
- description Gives a creature +1 Shield
- cost 2
- usage prebattle
- applies-shield 1
-reinforcements
- spell
- title Reinforcements
- description Draws 3 creature cards
- cost 4
- usage spawnphase
- draw-immediately 3
-slime
+shield_guy
  creature
- title Slime
- description Invulnerable to blunt damage
- cost 2
- hp 7
- attack 2
+ title Shield Guy
+ description Shield x1
+ cost 1
+ hp 3
+ attack 3
  offense blunt
+ defense shielded
+ shield 1
+stick_guy
+ creature
+ title Stick Guy
+ description When placed, adjacent creatures gain permanent +1 Attack
+ cost 1
+ hp 3
+ attack 2
+ offense sharp
  defense flesh
- invulnerable-to-blunt
+ battlecry-adjacent 1
+asteroid
+ creature
+ title Asteroid
+ description It's a giant asteroid
+ cost 2
+ hp 6
+ attack 2
+ offense sharp
+ defense shielded
+ developer
+confused_alien
+ creature
+ title Confused Alien
+ description The alien is confused. Like very confused. So confused
+ cost 3
+ hp 6
+ attack 4
+ offense magic
+ defense flesh
+ developer
+
+

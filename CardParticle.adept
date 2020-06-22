@@ -4,7 +4,7 @@ import 'main.adept'
 struct CardParticle (
     network_id CardNetworkID,
     texture *CaptTexture,
-    width, height float,
+    width, height, y_offset float,
     start, duration double,
     after ptr
 ) {
@@ -40,20 +40,21 @@ func advanceParticles(this *<*CardParticle> List) {
     }
 }
 
-func newCardParticle(network_id CardNetworkID, texture *CaptTexture, width, height float, duration_in_seconds double, after *CardParticle) *CardParticle {
+func newCardParticle(network_id CardNetworkID, texture *CaptTexture, width, height, y_offset float, duration_in_seconds double, after *CardParticle) *CardParticle {
     // NOTE: Returns allocated memory
     particle *CardParticle = new CardParticle
     particle.network_id = network_id
     particle.texture = texture
     particle.width = width
     particle.height = height
+    particle.y_offset = y_offset
     particle.start = 0.0
     particle.duration = duration_in_seconds
     particle.after = after
     return particle
 }
 
-func newCardParticle(network_id CardNetworkID, frames <*CaptTexture> List, width, height float, durations <double> List) *CardParticle {
+func newCardParticle(network_id CardNetworkID, frames <*CaptTexture> List, width, height, y_offset float, durations <double> List) *CardParticle {
     // NOTE: Returns allocated memory
     unless frames.length == durations.length {
         print("ERROR: newCardParticle(CardNetworkID, <*CaptTexture> List, float, float <double> List) *CardParticle : frames.length doesn't match durations.length")
@@ -66,12 +67,12 @@ func newCardParticle(network_id CardNetworkID, frames <*CaptTexture> List, width
     
     repeat frames.length {
         if particle == null {
-            particle = newCardParticle(network_id, frames.get(0), width, height, durations.get(0), null)
+            particle = newCardParticle(network_id, frames.get(0), width, height, y_offset, durations.get(0), null)
             child = particle
             continue
         }
         
-        child.after = newCardParticle(network_id, frames.get(idx), width, height, durations.get(idx), null)
+        child.after = newCardParticle(network_id, frames.get(idx), width, height, y_offset, durations.get(idx), null)
         child = child.getNext()
     }
     
@@ -91,7 +92,7 @@ func addAttackBonus(this *<*CardParticle> List, network_id CardNetworkID) {
     frames.add(&textures.popup_attack3)
     durations.add(1.0f)
     
-    this.spawn(newCardParticle(network_id, frames, 50.0f, 50.0f, durations))
+    this.spawn(newCardParticle(network_id, frames, 50.0f, 50.0f, 0.0f, durations))
 }
 
 func addPopupShield(this *<*CardParticle> List, network_id CardNetworkID) {
@@ -105,7 +106,25 @@ func addPopupShield(this *<*CardParticle> List, network_id CardNetworkID) {
     frames.add(&textures.popup_shield3)
     durations.add(1.0f)
     
-    this.spawn(newCardParticle(network_id, frames, 50.0f, 50.0f, durations))
+    this.spawn(newCardParticle(network_id, frames, 50.0f, 50.0f, 0.0f, durations))
+}
+
+func addSmite(this *<*CardParticle> List, network_id CardNetworkID) {
+    frames <*CaptTexture> List
+    durations <double> List
+    
+    frames.add(&textures.smite1)
+    durations.add(0.1f)
+    frames.add(&textures.smite2)
+    durations.add(0.1f)
+    frames.add(&textures.smite3)
+    durations.add(0.1f)
+    frames.add(&textures.smite4)
+    durations.add(0.1f)
+    frames.add(&textures.smite5)
+    durations.add(0.1f)
+    
+    this.spawn(newCardParticle(network_id, frames, 48.0f, 96.0f, -24.0f, durations))
 }
 
 func spawn(this *<*CardParticle> List, particle *CardParticle) {

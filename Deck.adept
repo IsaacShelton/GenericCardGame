@@ -68,6 +68,10 @@ struct Deck (blueprints <CardBlueprint> List) {
                 else if key == "on-fire",               traits.on_fire = true
                 else if key == "fire-resistant",        traits.fire_resistant = true
                 else if key == "invulnerable-to-blunt", traits.invulnerable_to_blunt = true
+                else if key == "must-be-attacked-last", traits.must_be_attacked_last = true
+                
+                else if key == "requires-target",       traits.requires_target = true
+                else if key == "insta-kill",            traits.insta_kill = true
                 else {
                     print("WARNING: Unrecognized card marker trait '%'" % key)
                 }
@@ -137,6 +141,9 @@ struct Deck (blueprints <CardBlueprint> List) {
                 else if key == "battlecry-adjacent", dest = &traits.battlecry_adjacent
                 else if key == "shield",             dest = &traits.shield
                 else if key == "spreads-fire",       dest = &traits.spreads_fire
+                else if key == "resistant-over",     dest = &traits.resistant_over
+                else if key == "gains-hp",           dest = &traits.gains_hp
+                
                 else if key == "applies-shield",     dest = &traits.applies_shield; traits.requires_target = true
                 else if key == "draw-immediately",   dest = &traits.draw_immediately
                 

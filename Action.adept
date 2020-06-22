@@ -44,8 +44,9 @@ struct Action (command_text String) {
         this.command_text = other.command_text
     }
     
-    func apply(inout state *GameState, out particles *<*CardParticle> List, out should_reschedule *bool) successful {
+    func apply(inout state *GameState, out particles *<*CardParticle> List, out should_reschedule *bool, out should_update_statuses *bool) successful {
         *should_reschedule = false
+        *should_update_statuses = false
         
         at_symbol long = this.command_text.first('@'ub)
         if at_symbol == -1, return false
@@ -55,6 +56,7 @@ struct Action (command_text String) {
         tokens <String> List = rest.split(" ")
         
         subject *Player = state.getPlayer(subject_name)
+        is_me bool = subject == state.getThisPlayer()
         
         if tokens.get(0) == "@end" {
             if tokens.length != 1 {
@@ -95,12 +97,14 @@ struct Action (command_text String) {
                 return false
             }
             
-            subject.spawnCard(card_blueprint_identifier, network_object_id.toUlong(), position_relation, position_reference.toUlong(), particles)
+            subject.spawnCard(card_blueprint_identifier, network_object_id.toUlong(), position_relation, position_reference.toUlong(), particles, is_me)
             
-            if subject && subject != state.getThisPlayer() {
+            if subject && !is_me {
                 // Reduce the number of dummy cards in the opponents hand
                 subject.hand.reduce(1)
             }
+            
+            *should_update_statuses = true
             return true
         } else if tokens.get(0) == "@attack" {            
             if tokens.length != 4 {

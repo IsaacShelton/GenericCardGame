@@ -41,7 +41,12 @@ struct Textures (
     popup_attack3,
     popup_shield1,
     popup_shield2,
-    popup_shield3 CaptTexture
+    popup_shield3,
+    smite1,
+    smite2,
+    smite3,
+    smite4,
+    smite5 CaptTexture
 ) {
     func load {
         assets_folder String = where() + "assets/"

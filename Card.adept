@@ -95,6 +95,10 @@ struct CardInstance (
     }
     
     func isDead bool = this.hp <= 0
+    func isSad bool {
+        if this.traits.on_fire && !this.traits.fire_resistant, return true
+        return false
+    }
 }
 
 func cardInstance(blueprint *CardBlueprint) CardInstance {

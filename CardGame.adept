@@ -106,20 +106,6 @@ struct CardGame (
         if this.state.shouldAdvancePhase() {
             this.displayAlert(this.state.phase.toString() + "!")
             
-            // Clear attack orders when entering attack phase
-            if this.state.phase.kind == PhaseKind::ATTACK {
-                this.attack_orders.clear()
-                this.state.attack_orders.clear()
-            }
-            
-            // Automatically do draw phase without player intervention
-            if this.state.phase.kind == PhaseKind::DRAW {
-                this.state.doDrawPhase()
-            } else if this.state.phase.kind != PhaseKind::BATTLE {
-                // Show end turn button if not draw or battle phase
-                this.show_end_turn_button = true
-            }
-            
             // Remove any playing attack order
             this.playing_attack_order.rid()
             
@@ -127,11 +113,27 @@ struct CardGame (
             each SpellOrder in this.state.spell_orders {
                 victim *CardInstance = this.state.getCardOnBoardByNetworkId(it.victim)
                 this.state.doSpell(it.player_id, it.blueprint, victim, &this.particles, it.randomness)
+                this.card_statuses = this.state.getCardStatuses()
                 
                 player *Player = this.state.getPlayer(it.player_id)
                 if player && player != this.state.getThisPlayer(), player.hand.reduce(1)
                 
                 this.state.spell_orders.remove(idx--)
+            }
+            
+            switch this.state.phase.kind {
+            case PhaseKind::DRAW
+                this.state.doDrawPhase()
+                this.show_end_turn_button = false
+            case PhaseKind::SPAWN
+                this.show_end_turn_button = true
+            case PhaseKind::ATTACK
+                this.attack_orders.clear()
+                this.state.attack_orders.clear()
+                this.card_statuses = this.state.getCardStatuses()
+                this.show_end_turn_button = true
+            case PhaseKind::BATTLE
+                this.show_end_turn_button = false
             }
         }
         
@@ -176,7 +178,7 @@ struct CardGame (
             this.card_statuses = this.state.getCardStatuses()
             
             this.state.applyPassiveEffects()
-            this.state.removeDeadCards()
+            this.state.removeDeadCards(true)
             
             // Leave the game if lost
             if me.hearts <= 0 {
@@ -222,7 +224,7 @@ struct CardGame (
             if me && me.board.length > 0 && !me.sent_done {
                 this.getMyBoardCardPositions(def card_positions <CardPosition> List)
                 each CardPosition in card_positions {
-                    if it.intersecting(x, y) {
+                    if !me.board.getPointer(idx).isDead() && it.intersecting(x, y) {
                         this.with_aggressor = me.board.getPointer(idx).network_id
                         break
                     }
@@ -243,26 +245,29 @@ struct CardGame (
             card *CardInstance = this.state.getMyCard(this.dragging_card)
             
             if me && !me.sent_done && card && me.mana >= card.cost && allowed(card.traits.usage, this.state.phase.kind) {
-                
                 switch card.kind {
                 case CardKind::CREATURE
                     // If creature
-                    rightof_network_id usize = 0
                     
-                    if me.board.length != 0 {
-                        this.getMyBoardCardPositions(def card_positions <CardPosition> List)
+                    if me.supply < 4 || card.traits.separation {
+                        rightof_network_id usize = 0
                         
-                        each CardPosition in card_positions {
-                            if it.x < x {
-                                rightof_network_id = me.board.getPointer(idx).network_id
-                                if rightof_network_id == 0, print("WARNING: CardGame.release() when placing card, was placed right of a card with network_id 0")
+                        if me.board.length != 0 {
+                            this.getMyBoardCardPositions(def card_positions <CardPosition> List)
+                            
+                            each CardPosition in card_positions {
+                                if it.x < x {
+                                    rightof_network_id = me.board.getPointer(idx).network_id
+                                    if rightof_network_id == 0, print("WARNING: CardGame.release() when placing card, was placed right of a card with network_id 0")
+                                }
                             }
                         }
+                        
+                        gamedata.manager.writeOutgoing(gamedata.player_name + "@spawn ~ " + card.name + " rightof " + toString(rightof_network_id) + "\n")
+                        me.mana -= card.cost
+                        unless card.traits.separation, me.supply++
+                        this.state.getRidOfMyCardInHand(this.dragging_card)
                     }
-                    
-                    gamedata.manager.writeOutgoing(gamedata.player_name + "@spawn ~ " + card.name + " rightof " + toString(rightof_network_id) + "\n")
-                    me.mana -= card.cost
-                    this.state.getRidOfMyCardInHand(this.dragging_card)
                 case CardKind::SPELL
                     // If spell
                     target CardNetworkID = 0
@@ -326,7 +331,12 @@ struct CardGame (
     
     func handleActionsCallback(action *Action) successful {
         // When unsuccessful, the agent's current and future actions will be postponed
-        action.apply(&this.state, &this.particles, def should_reschedule bool)
+        action.apply(&this.state, &this.particles, def should_reschedule bool, def should_update_card_statuses bool)
+        
+        if should_update_card_statuses {
+            this.card_statuses = this.state.getCardStatuses()
+        }
+        
         if should_reschedule, return false
         return true
     }
@@ -611,17 +621,20 @@ struct CardGame (
         texture *CaptTexture = null
         now double = glfwGetTime()
         
+        status CardStatus = this.card_statuses.getFromNetworkID(instance.network_id)
+        has_died bool = status.is_dead
+        has_been_sad bool = status.is_sad
+        has_been_on_fire bool = status.is_on_fire
+        
         if this.card_animations.hasCardAnimation(instance.network_id, undef animation CardAnimation) {
             texture = animation.texture
+        } else if has_been_sad {
+            texture = now % 1.0 < 0.5 ? instance.ct.sad1 : instance.ct.sad2
         } else {
             texture = now % 1.0 < 0.5 ? instance.ct.stand1 : instance.ct.stand2
         }
         
-        status CardStatus = this.card_statuses.getFromNetworkID(instance.network_id)
-        has_died bool = status.is_dead
-        has_been_on_fire bool = status.is_on_fire
-        
-        if has_been_on_fire && !instance.traits.fire_resistant {
+        if has_been_on_fire {
             // Draw behind flames
             drawCentered(textures.fire_debuff_hr, position.x, position.y, 2.0f * position.scale * CHARACTER_WIDTH, 2.0f * position.scale * CHARACTER_HEIGHT)
         }
@@ -767,7 +780,7 @@ struct CardGame (
     func drawParticlesForCard(network_id CardNetworkID, position CardPosition) {
         each *CardParticle in this.particles {
             if it.network_id == network_id {
-                drawCentered(*it.texture, position.x, position.y, position.scale * it.width, position.scale * it.height)
+                drawCentered(*it.texture, position.x, position.y + position.scale * it.y_offset, position.scale * it.width, position.scale * it.height)
             }
         }
     }

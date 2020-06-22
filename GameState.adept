@@ -9,18 +9,40 @@ import 'AttackOrder.adept'
 
 alias PlayerID = usize
 
-struct Player (player_id PlayerID, name String, starting_hearts, hearts, mana int, hand <CardInstance> List, board <CardInstance> List, done, sent_done bool) {
-    func drawCardsFromDeck(amount usize) {
+struct Player (
+    player_id PlayerID,
+    name String,
+    starting_hearts, hearts, mana, supply int,
+    hand <CardInstance> List,
+    board <CardInstance> List,
+    done, sent_done bool
+) {
+    func drawCardsFromDeck(amount usize, is_me bool) {
         repeat amount {
+            // Maximum hand limit of 10 cards for now
+            if this.hand.length >= 10, return
+            
             // Since <$T> List.add() currently accepts POD $T, we must
             // store the card instance seperately in order for __defer__
             // to be called properly
             card CardInstance = gamedata.deck.randomCard()
+            
+            // Try to avoid redrawing cards
+            if is_me, repeat redrawing : 10 {
+                each CardInstance in this.hand {
+                    if it.name == card.name {
+                        card = gamedata.deck.randomCard()
+                        continue redrawing
+                    }
+                }
+                break
+            }
+            
             this.hand.add(card)
         }
     }
     
-    func spawnCard(blueprint_name String, unique_network_id CardNetworkID, relation String, related_unique_network_id CardNetworkID, out particles *<*CardParticle> List) {
+    func spawnCard(blueprint_name String, unique_network_id CardNetworkID, relation String, related_unique_network_id CardNetworkID, out particles *<*CardParticle> List, is_me bool) {
         destination usize = 0
         
         if related_unique_network_id != 0, each CardInstance in static this.board {
@@ -71,6 +93,11 @@ struct Player (player_id PlayerID, name String, starting_hearts, hearts, mana in
             it.print()
             glfwSetWindowShouldClose(_captain_window, true)
         }
+        
+        // Don't keep track for supply of ourselves here, because it depends on the network
+        unless is_me || blueprint.traits.separation {
+            this.supply++
+        }
     }
     
     func getCardOnBoardByNetworkId(network_id CardNetworkID) *CardInstance {
@@ -83,7 +110,10 @@ struct Player (player_id PlayerID, name String, starting_hearts, hearts, mana in
     }
     
     func removeDeadCards {
-        each CardInstance in this.board, if it.isDead(), this.board.remove(idx--)
+        each CardInstance in this.board, if it.isDead() {
+            unless it.traits.separation, this.supply--
+            this.board.remove(idx--)
+        }
     }
 }
 
@@ -125,7 +155,7 @@ struct GameState (
     
     func addPlayer(name String) {
         new_player *Player = this.players.addPlayer(this.next_player_id++, name)
-        new_player.drawCardsFromDeck(3)
+        new_player.drawCardsFromDeck(3, name == gamedata.player_name)
     }
     
     func getPlayer(name String) *Player {
@@ -198,8 +228,10 @@ struct GameState (
         this.phase.advance()
         each Player in this.players, it.done = false; it.sent_done = false
         
-        if this.phase.kind == PhaseKind::SPAWN,
+        switch this.phase.kind {
+        case PhaseKind::SPAWN
             this.distributeMana()
+        }
         
         if this.phase.kind != PhaseKind::BATTLE,
             this.attack_orders.clear()
@@ -218,15 +250,30 @@ struct GameState (
     func doDrawPhase {
         each Player in this.players {
             cards_to_draw usize = it.starting_hearts < it.hearts ? 1 : it.starting_hearts - it.hearts + 1
-            it.drawCardsFromDeck(cards_to_draw)
+            it.drawCardsFromDeck(cards_to_draw, it.name == gamedata.player_name)
         }
     }
     
     func doAttack(aggressor *CardInstance, victim *CardInstance, out particles *<*CardParticle> List, randomness int) successful {
         used_shield bool = false
         
-        if victim.traits.invulnerable_to_blunt && aggressor.offense.kind == OffenseKind::BLUNT {
-            // For now, let's just act that since we are invulnerable to blunt damage,
+        invulnerable_to_attack bool = (
+            (victim.traits.invulnerable_to_blunt && aggressor.offense.kind == OffenseKind::BLUNT) ||
+            (victim.traits.resistant_over != 0 && aggressor.attack > victim.traits.resistant_over)
+        )
+        
+        // Make victim invulnerable if must be attacked last and not the last card
+        if victim.traits.must_be_attacked_last && !invulnerable_to_attack {
+            is_last bool = true
+            owner *Player = this.findOwner(victim.network_id)
+            if owner, each CardInstance in static owner.board {
+                unless it.traits.must_be_attacked_last || it.isDead(), is_last = false; break
+            }
+            unless is_last, invulnerable_to_attack = true
+        }
+        
+        if invulnerable_to_attack {
+            // For now, let's just act that since we are invulnerable to attack,
             // Nothing else from the attack applies
             return false
         }
@@ -254,14 +301,19 @@ struct GameState (
     }
     
     func doSpell(player_id PlayerID, blueprint *CardBlueprint, victim *CardInstance, out particles *<*CardParticle> List, randomness int) successful {
-        if blueprint.traits.applies_shield {
+        if blueprint.traits.applies_shield && victim {
             victim.traits.shield += blueprint.traits.applies_shield
             if particles, particles.addPopupShield(victim.network_id)
         }
         
         if blueprint.traits.draw_immediately {
             player *Player = this.getPlayer(player_id)
-            if player, player.drawCardsFromDeck(blueprint.traits.draw_immediately)
+            if player, player.drawCardsFromDeck(blueprint.traits.draw_immediately, player.name == gamedata.player_name)
+        }
+        
+        if blueprint.traits.insta_kill && victim {
+            victim.hp = 0
+            if particles, particles.addSmite(victim.network_id)
         }
         
         return true
@@ -270,8 +322,14 @@ struct GameState (
     func applyPassiveEffects {
         each player Player in this.players {
             each CardInstance in player.board {
+                // on-fire && !fire-resistant
                 if it.traits.on_fire && !it.traits.fire_resistant {
                     it.hp -= (it.max_hp as float / 5.0f < 1.0f ? 1 : floorf(it.max_hp as float / 5.0f) as int)
+                }
+                
+                // gains-hp <amount>
+                if it.traits.gains_hp != 0 && it.hp > 0 {
+                    it.hp += it.traits.gains_hp
                 }
             }
         }
@@ -283,15 +341,24 @@ struct GameState (
         return list.commit()
     }
     
-    func removeDeadCards {
+    func removeDeadCards(lose_a_heart_if_none_left bool) {
         each player Player in this.players {
             player.removeDeadCards()
             
             // Lose a heart if no creatures left on board
-            if player.board.length == 0 {
+            if lose_a_heart_if_none_left && player.board.length == 0 {
                 player.hearts--
                 unless gamedata.gamemode.exclusive_heart_mana_bonus, this.global_mana++
             }
         }
+    }
+    
+    func findOwner(network_id CardNetworkID) *Player {
+        each player Player in this.players {
+            each card CardInstance in player.board {
+                if card.network_id == network_id, return &player
+            }
+        }
+        return null
     }
 }
