@@ -12,9 +12,10 @@ alias PlayerID = usize
 struct Player (
     player_id PlayerID,
     name String,
-    starting_hearts, hearts, mana, supply int,
+    starting_hearts, hearts, mana, supply, draw_cost int,
     hand <CardInstance> List,
     board <CardInstance> List,
+    stat_card <CardInstance> Optional,
     done, sent_done bool
 ) {
     func drawCardsFromDeck(amount usize, is_me bool) {
@@ -42,15 +43,9 @@ struct Player (
         }
     }
     
-    func spawnCard(blueprint_name String, unique_network_id CardNetworkID, relation String, related_unique_network_id CardNetworkID, out particles *<*CardParticle> List, is_me bool) {
+    func spawnCard(blueprint_name String, unique_network_id CardNetworkID, relation String, related_unique_network_id CardNetworkID,
+            out particles *<*CardParticle> List, is_me bool, global_dancing int) {
         destination usize = 0
-        
-        if related_unique_network_id != 0, each CardInstance in static this.board {
-            if it.network_id == related_unique_network_id {
-                destination = relation == "leftof" ? idx : idx + 1
-                break
-            }
-        }
         
         blueprint *CardBlueprint = gamedata.deck.getCardBlueprint(blueprint_name)
         unless blueprint {
@@ -58,10 +53,24 @@ struct Player (
             return
         }
         
-        each CardInstance in this.board, if it.network_id == 0 {
-            print("(before) NETWORK ID IS ZERO ERROR")
-            it.print()
-            glfwSetWindowShouldClose(_captain_window, true)
+        // Handle if the card is a stat card
+        if blueprint.kind == CardKind::STAT {
+            // Bypass normal spawning process if it's a stat card
+            this.stat_card.rid()
+            
+            // Manually set stat card
+            if this.stat_card.has, this.stat_card.value.?__defer__()
+            this.stat_card.value = cardInstance(blueprint)
+            this.stat_card.has = true
+            return
+        }
+        
+        // Find where to put the creature card
+        if related_unique_network_id != 0, each CardInstance in static this.board {
+            if it.network_id == related_unique_network_id {
+                destination = relation == "leftof" ? idx : idx + 1
+                break
+            }
         }
         
         // Since <$T> List.insert() currently accepts POD $T, we must
@@ -88,10 +97,9 @@ struct Player (
             }
         }
         
-        each CardInstance in this.board, if it.network_id == 0 {
-            print("(after) NETWORK ID IS ZERO ERROR")
-            it.print()
-            glfwSetWindowShouldClose(_captain_window, true)
+        // Apply global_dancing
+        if global_dancing > 0 && global_dancing > card.traits.dancing {
+            card.traits.dancing = global_dancing
         }
         
         // Don't keep track for supply of ourselves here, because it depends on the network
@@ -115,6 +123,17 @@ struct Player (
             this.board.remove(idx--)
         }
     }
+    
+    func getDrawCost int {
+        unless this.stat_card.has, return this.draw_cost
+        
+        discount int = this.stat_card.getPointer().traits.draw_cost_reduction != 0
+        if discount != 0 {
+            return discount >= this.draw_cost ? 1 : this.draw_cost - discount
+        }
+        
+        return this.draw_cost
+    }
 }
 
 func addPlayer(this *<Player> List, player_id PlayerID, name String) *Player {
@@ -126,10 +145,12 @@ func addPlayer(this *<Player> List, player_id PlayerID, name String) *Player {
     new_player.starting_hearts = 3
     new_player.hearts = 3
     new_player.mana = 0
+    new_player.supply = 0
+    new_player.draw_cost = 2
     // new_player.hand is left empty
     // new_player.board is left empty
+    // new_player.stat_card is left with nothing
     new_player.done = false
-    
     return new_player
 }
 
@@ -137,6 +158,7 @@ struct GameState (
     phase Phase,
     next_player_id PlayerID,
     global_mana int,
+    global_dancing int,
     players <Player> List,
     spell_orders <SpellOrder> List,
     attack_orders <AttackOrder> List
@@ -145,6 +167,7 @@ struct GameState (
         this.phase = phase(PhaseKind::SPAWN)
         this.next_player_id = 1
         this.global_mana = player_names.length
+        this.global_dancing = 0
         
         this.players.clear()
         each player_name String in player_names, this.addPlayer(player_name)
@@ -231,6 +254,7 @@ struct GameState (
         switch this.phase.kind {
         case PhaseKind::SPAWN
             this.distributeMana()
+            this.reduceDancing()
         }
         
         if this.phase.kind != PhaseKind::BATTLE,
@@ -254,19 +278,66 @@ struct GameState (
         }
     }
     
-    func doAttack(aggressor *CardInstance, victim *CardInstance, out particles *<*CardParticle> List, randomness int) successful {
+    func doAttack(aggressor *CardInstance, inout victim_var **CardInstance, out particles *<*CardParticle> List, randomness int) successful {
         used_shield bool = false
+        victim *CardInstance = *victim_var
+        attack int = aggressor.attack
+        victim_owner *Player = this.findOwner(victim.network_id)
+        
+        // dancing => You can't attack while dancing!
+        if aggressor.traits.dancing, return false
+        
+        // random-victim
+        if aggressor.traits.random_victim {
+            // TODO: Make victim determination less correlated with other random events
+            if victim_owner {
+                *victim_var = victim_owner.board.getPointer(randomness % victim_owner.board.length)
+                victim = *victim_var
+            }
+        }
+        
+        // rage
+        if aggressor.traits.rage {
+            // TODO: Make victim determination less correlated with other random events
+            if victim_owner && victim_owner.board.length > 1 {
+                initial_victim_index usize = 0
+                
+                // Find index which initial victim is holding
+                each CardInstance in static victim_owner.board {
+                    if it.network_id == victim.network_id {
+                        initial_victim_index = idx
+                        break
+                    }
+                }
+                
+                // Select a victim that isn't the target
+                new_victim_index usize = randomness % (victim_owner.board.length - 1)
+                if new_victim_index >= initial_victim_index, new_victim_index++
+                
+                *victim_var = victim_owner.board.getPointer(new_victim_index)
+                victim = *victim_var
+            }
+            
+            attack = cast int (attack as double * 1.5)
+        }
+        
+        // applies-resistance (stat card effect)
+        if victim_owner && victim_owner.stat_card.has && victim_owner.stat_card.getPointer().traits.applies_resistance {
+            attack -= victim_owner.stat_card.getPointer().traits.applies_resistance
+            if attack < 0, attack = 0
+            
+            if particles, particles.addResistance(victim.network_id)
+        }
         
         invulnerable_to_attack bool = (
             (victim.traits.invulnerable_to_blunt && aggressor.offense.kind == OffenseKind::BLUNT) ||
-            (victim.traits.resistant_over != 0 && aggressor.attack > victim.traits.resistant_over)
+            (victim.traits.resistant_over != 0 && attack > victim.traits.resistant_over)
         )
         
         // Make victim invulnerable if must be attacked last and not the last card
         if victim.traits.must_be_attacked_last && !invulnerable_to_attack {
             is_last bool = true
-            owner *Player = this.findOwner(victim.network_id)
-            if owner, each CardInstance in static owner.board {
+            if victim_owner, each CardInstance in static victim_owner.board {
                 unless it.traits.must_be_attacked_last || it.isDead(), is_last = false; break
             }
             unless is_last, invulnerable_to_attack = true
@@ -289,7 +360,13 @@ struct GameState (
             return false
         }
         
-        victim.hp -= aggressor.attack
+        if victim.traits.endure > 0 && victim.hp > 0 && attack >= victim.hp && victim.hp > victim.traits.endure {
+            // Endure
+            victim.hp = victim.traits.endure
+        } else {
+            // Regular damage
+            victim.hp -= attack
+        }
         
         // Spread fire to victim if should
         if aggressor.traits.spreads_fire && !victim.traits.fire_resistant {
@@ -301,25 +378,67 @@ struct GameState (
     }
     
     func doSpell(player_id PlayerID, blueprint *CardBlueprint, victim *CardInstance, out particles *<*CardParticle> List, randomness int) successful {
+        player *Player = this.getPlayer(player_id)
+        
+        // applies-shield (for spells)
         if blueprint.traits.applies_shield && victim {
             victim.traits.shield += blueprint.traits.applies_shield
             if particles, particles.addPopupShield(victim.network_id)
         }
         
+        // applies-healing (for spells)
+        if blueprint.traits.applies_healing && victim && victim.hp < victim.max_hp {
+            victim.heal(blueprint.traits.applies_healing)
+            if particles, particles.addHealing(victim.network_id)
+        }
+        
+        // applies-attack (for spells)
+        if blueprint.traits.applies_attack && victim {
+            victim.attack += blueprint.traits.applies_attack
+            if particles, particles.addAttackBonus(victim.network_id)
+        }
+        
+        // applies-on-fire (for spells)
+        if blueprint.traits.applies_on_fire && victim && !victim.traits.fire_resistant {
+            victim.traits.on_fire = true
+        }
+        
+        // draw-immediately (for spells)
         if blueprint.traits.draw_immediately {
-            player *Player = this.getPlayer(player_id)
             if player, player.drawCardsFromDeck(blueprint.traits.draw_immediately, player.name == gamedata.player_name)
         }
         
+        // insta-kill (for spells)
         if blueprint.traits.insta_kill && victim {
             victim.hp = 0
             if particles, particles.addSmite(victim.network_id)
         }
         
+        // everybody-dance-now (for spells)
+        if blueprint.traits.everybody_dance_now {
+            if blueprint.traits.everybody_dance_now > this.global_dancing,
+                this.global_dancing = blueprint.traits.everybody_dance_now
+            this.applyDancing(blueprint.traits.everybody_dance_now)
+        }
+        
+        // applies-rage (for spells)
+        if blueprint.traits.applies_rage {
+            victim.traits.rage = true
+        }
+        
+        // Ignore gives-mana (for spells) for the playing player because we will
+        // have it apply immediately as the player plays the card
+        // For good measure, we'll track it on other players though
+        if blueprint.traits.gives_mana {
+            if player && !(player.name == gamedata.player_name) {
+                player.mana += blueprint.traits.gives_mana
+            }
+        }
+        
         return true
     }
     
-    func applyPassiveEffects {
+    func applyPassiveEffects(out particles *<*CardParticle> List) {
         each player Player in this.players {
             each CardInstance in player.board {
                 // on-fire && !fire-resistant
@@ -330,6 +449,15 @@ struct GameState (
                 // gains-hp <amount>
                 if it.traits.gains_hp != 0 && it.hp > 0 {
                     it.hp += it.traits.gains_hp
+                    if particles, particles.addHealing(it.network_id)
+                }
+            }
+            
+            // applies-healing (for stat cards)
+            if player.stat_card.has && player.stat_card.getPointer().traits.applies_healing != 0 {
+                each CardInstance in player.board {
+                    if particles && !it.isDead() && it.heal(player.stat_card.getPointer().traits.applies_healing),
+                        particles.addHealing(it.network_id)
                 }
             }
         }
@@ -360,5 +488,25 @@ struct GameState (
             }
         }
         return null
+    }
+    
+    func reduceDancing {
+        if this.global_dancing > 0, this.global_dancing--
+        
+        each player Player in static this.players {
+            each card CardInstance in static player.board {
+                if card.traits.dancing > 0, card.traits.dancing--
+            }
+        }
+    }
+    
+    func applyDancing(amount int) {
+        if amount <= 0, return
+        
+        each player Player in static this.players {
+            each card CardInstance in static player.board {
+                if card.traits.dancing < amount, card.traits.dancing = amount
+            }
+        }
     }
 }

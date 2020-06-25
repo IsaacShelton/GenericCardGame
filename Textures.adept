@@ -46,7 +46,20 @@ struct Textures (
     smite2,
     smite3,
     smite4,
-    smite5 CaptTexture
+    smite5,
+    heal1,
+    heal2,
+    heal3,
+    rage1,
+    rage2,
+    resistance,
+    wizards_aid1,
+    wizards_aid2,
+    wizards_aid3,
+    wizards_aid4,
+    wizards_aid5,
+    wizards_aid6,
+    wizards_aid7 CaptTexture
 ) {
     func load {
         assets_folder String = where() + "assets/"
@@ -55,8 +68,10 @@ struct Textures (
         // NOTE: "font_black" is intentionally left approximated
         exceptions <String> Array = array(static String {
             "font", "popup_attack1", "popup_attack2", "popup_attack3",
-            "popup_shield1", "popup_shield2", "popup_shield3"
-        }, 7)
+            "popup_shield1", "popup_shield2", "popup_shield3", "resistance",
+            "wizards_aid1", "wizards_aid2", "wizards_aid3", "wizards_aid4",
+            "wizards_aid5", "wizards_aid6", "wizards_aid7"
+        }, 15)
         
         each *ubyte in [info.member_names, info.length] {
             member_name String = stringConstant(it)

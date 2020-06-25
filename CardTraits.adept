@@ -15,11 +15,24 @@ struct CardTraits (
     resistant_over int,         // (creature only)
     separation bool,            // (creature only)
     gains_hp int,               // (creature only)
+    random_victim bool,         // (creature only)
+    endure int,                 // (creature only)
+    dancing int,                // (creature only)
+    rage bool,                  // (creature only)
     
     applies_shield int,         // (spell only)
     draw_immediately int,       // (spell only)
     requires_target bool,       // (spell only)
-    insta_kill      bool        // (spell only)
+    insta_kill      bool,       // (spell only)
+    applies_on_fire bool,       // (spell only)
+    everybody_dance_now int,    // (spell only)
+    applies_healing int,        // (spell and stat)
+    applies_attack int,         // (spell only)
+    applies_rage bool,          // (spell only)
+    gives_mana int,             // (spell only)
+    
+    draw_cost_reduction int,    // (stat only)
+    applies_resistance int      // (stat only)
 ) {
     func defaults {
         this.developer = false
@@ -34,11 +47,24 @@ struct CardTraits (
         this.resistant_over = 0
         this.separation = false
         this.gains_hp = 0
+        this.random_victim = false
+        this.endure = 0
+        this.dancing = 0
+        this.rage = false
         
         this.applies_shield = 0
         this.draw_immediately = 0
         this.requires_target = false
         this.insta_kill = false
+        this.applies_on_fire = false
+        this.everybody_dance_now = 0
+        this.applies_healing = 0
+        this.applies_attack = 0
+        this.applies_rage = false
+        this.gives_mana = 0
+        
+        this.draw_cost_reduction = 0
+        this.applies_resistance = 0
     }
     
     func toString String {
@@ -47,7 +73,7 @@ struct CardTraits (
         if this.developer,               result.append("developer ")
         result.append("usage: " + toString(this.usage) + " ")
         
-        // Creature only
+        // Primarily for Creatures
         if this.battlecry_adjacent != 0, result.append("battlecry-adjacent:% " % this.battlecry_adjacent)
         if this.shield != 0,             result.append("shield:% " % this.shield)
         if this.on_fire,                 result.append("on-fire ")
@@ -58,12 +84,26 @@ struct CardTraits (
         if this.resistant_over != 0,     result.append("resistant-over:% " % this.resistant_over)
         if this.separation,              result.append("separation ")
         if this.gains_hp != 0,           result.append("gains-hp:% " % this.gains_hp)
+        if this.random_victim,           result.append("random-victim ")
+        if this.endure != 0,             result.append("endure:% " % this.endure)
+        if this.dancing != 0,            result.append("dancing:% " % this.dancing)
+        if this.rage,                    result.append("rage ")
         
-        // Spells only
+        // Primarily for Spells
         if this.applies_shield,          result.append("applies-shield:% " % this.applies_shield)
         if this.draw_immediately,        result.append("draw-immediately:% " % this.draw_immediately)
         if this.requires_target,         result.append("requires-target ")
         if this.insta_kill,              result.append("insta-kill ")
+        if this.applies_on_fire,         result.append("applies-on-fire ")
+        if this.everybody_dance_now,     result.append("everybody-dance-now:% " % this.everybody_dance_now)
+        if this.applies_healing,         result.append("applies-healing:% " % this.applies_healing)
+        if this.applies_attack,          result.append("applies-attack:% " % this.applies_attack)
+        if this.applies_rage,            result.append("applies-rage ")
+        if this.gives_mana,              result.append("gives-mana:% " % this.gives_mana)
+        
+        // Primarily for Stats
+        if this.draw_cost_reduction,     result.append("draw-cost-reduction:% " % this.draw_cost_reduction)
+        if this.applies_resistance,      result.append("applies_resistance:% " % this.applies_resistance)
         
         result.trim()
         return result.commit()

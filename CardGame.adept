@@ -40,7 +40,9 @@ struct CardGame (
     dragging_card CardInstanceID,
     dragging_card_scale float,
     is_end_turn_button_hovered bool,
+    is_draw_card_button_hovered bool,
     show_end_turn_button bool,
+    show_draw_card_button bool,
     experimental_value float,
     attack_orders <AttackOrder> List,
     with_aggressor CardNetworkID,
@@ -49,7 +51,9 @@ struct CardGame (
     playing_attack_order <AttackOrder> Optional,
     animated_attack_line_x, animated_attack_line_y float, // 0.0f == starting card position
     card_statuses <CardStatus> List,
-    particles <*CardParticle> List
+    particles <*CardParticle> List,
+    playing_wizards_aid_animation bool,
+    wizards_aid_animation_beginning double
 ) {
     func setup {}
     
@@ -63,6 +67,8 @@ struct CardGame (
     func enter {
         this.dragging_card = 0
         this.show_end_turn_button = true
+        this.show_draw_card_button = true
+        this.playing_wizards_aid_animation = false
         
         this.displayAlert("Spawn Phase!")
         this.experimental_value = 1.0f
@@ -127,6 +133,7 @@ struct CardGame (
                 this.show_end_turn_button = false
             case PhaseKind::SPAWN
                 this.show_end_turn_button = true
+                this.card_statuses = this.state.getCardStatuses()
             case PhaseKind::ATTACK
                 this.attack_orders.clear()
                 this.state.attack_orders.clear()
@@ -137,9 +144,12 @@ struct CardGame (
             }
         }
         
-        // Set whether the 'end turn' button is hovered
+        this.show_draw_card_button = (me && me.mana >= me.getDrawCost() && this.state.phase.kind == PhaseKind::SPAWN && this.show_end_turn_button)
+        
+        // Set whether buttons are hovered
         captMouseViewPosition(undef mouseX float, undef mouseY float)
         this.calculateWhetherEndTurnButtonIsHovered(mouseX, mouseY)
+        this.calculateWhetherDrawCardButtonIsHovered(mouseX, mouseY)
         
         // Advance card animations
         this.card_animations.advanceAnimations()
@@ -161,7 +171,7 @@ struct CardGame (
             victim *CardInstance = this.state.getCardOnBoardByNetworkId(order.victim)
             
             if aggressor && victim {
-                did_attack_work successful = this.state.doAttack(aggressor, victim, &this.particles, order.randomness)
+                did_attack_work successful = this.state.doAttack(aggressor, &victim, &this.particles, order.randomness)
                 this.playAttackAnimation(aggressor, victim, did_attack_work)
                 
                 this.animated_attack_line_x = 0.0f // 0.0f == starting card x
@@ -177,7 +187,7 @@ struct CardGame (
             // Update card statuses
             this.card_statuses = this.state.getCardStatuses()
             
-            this.state.applyPassiveEffects()
+            this.state.applyPassiveEffects(&this.particles)
             this.state.removeDeadCards(true)
             
             // Leave the game if lost
@@ -204,6 +214,18 @@ struct CardGame (
             return
         }
         
+        // Draw a card when the 'draw card' button was clicked
+        if this.show_draw_card_button && this.show_end_turn_button && this.calculateWhetherDrawCardButtonIsHovered(x, y) {
+            me *Player = this.state.getThisPlayer()
+            
+            if me && !me.done && !me.sent_done && me.mana >= me.getDrawCost() {
+                me.drawCardsFromDeck(1, true)
+                me.mana -= me.getDrawCost()
+                gamedata.manager.writeOutgoing(gamedata.player_name + "@draw\n")
+            }
+            return
+        }
+        
         // When in spawn and attack phase, allow the player to drag and spawn cards
         if this.state.phase.kind == PhaseKind::SPAWN || this.state.phase.kind == PhaseKind::ATTACK {
             if me && me.hand.length > 0 && !me.sent_done {
@@ -224,7 +246,8 @@ struct CardGame (
             if me && me.board.length > 0 && !me.sent_done {
                 this.getMyBoardCardPositions(def card_positions <CardPosition> List)
                 each CardPosition in card_positions {
-                    if !me.board.getPointer(idx).isDead() && it.intersecting(x, y) {
+                    card *CardInstance = me.board.getPointer(idx)
+                    if !card.isDead() && !card.isDancing() && it.intersecting(x, y) {
                         this.with_aggressor = me.board.getPointer(idx).network_id
                         break
                     }
@@ -280,9 +303,22 @@ struct CardGame (
                     unless card.traits.requires_target && target == 0 {
                         // Play spell
                         gamedata.manager.writeOutgoing(gamedata.player_name + "@play " + card.name + " " + toString(target) + " `\n")
+                        
+                        // If the spell gives mana to only this player,
+                        // then give the mana immediately, and ignore the echo when it comes
+                        // back over the network
+                        if card.traits.gives_mana && me {
+                            me.mana += card.traits.gives_mana
+                            this.playWizardsAidAnimation()
+                        }
+                        
                         me.mana -= card.cost
                         this.state.getRidOfMyCardInHand(this.dragging_card)
                     }
+                case CardKind::STAT
+                    gamedata.manager.writeOutgoing(gamedata.player_name + "@spawn ~ " + card.name + " rightof 0\n")
+                    me.mana -= card.cost
+                    this.state.getRidOfMyCardInHand(this.dragging_card)
                 }
                 
                 if me.mana < 0 {
@@ -430,6 +466,10 @@ struct CardGame (
         if this.show_end_turn_button {
             drawButton("end turn", this, func &getEndTurnButtonPosition(*CardGame, *float, *float), this.is_end_turn_button_hovered)
         }
+        
+        if this.show_draw_card_button && this.show_end_turn_button {
+            drawButton("draw card", this, func &getDrawCardButtonPosition(*CardGame, *float, *float), this.is_draw_card_button_hovered)
+        }
     }
     
     func drawMyHand {
@@ -488,6 +528,13 @@ struct CardGame (
         captMouseViewPosition(undef mouseX float, undef mouseY float)
         this.getMyBoardCardPositions(def card_positions <CardPosition> List)
         
+        // Draw stat card
+        if me.stat_card.has {
+            this.getMyStatCardPosition(card_positions, undef stat_x float, undef stat_y float)
+            this.drawCard(me.stat_card.getPointer(), stat_x, stat_y, 1.0f)
+        }
+        
+        // Draw main board cards
         each CardPosition in card_positions {
             if glfwGetMouseButton(_captain_window, GLFW_MOUSE_BUTTON_2) == GLFW_PRESS && it.intersecting(mouseX, mouseY) {
                 this.drawCard(me.board.getPointer(idx), it.x, it.y, it.scale)
@@ -504,6 +551,13 @@ struct CardGame (
         captMouseViewPosition(undef mouseX float, undef mouseY float)
         this.getOpponentsBoardCardPositions(def card_positions <CardPosition> List)
         
+        // Draw stat card
+        if opponent.stat_card.has {
+            this.getOpponentsStatCardPosition(card_positions, undef stat_x float, undef stat_y float)
+            this.drawCard(opponent.stat_card.getPointer(), stat_x, stat_y, 1.0f)
+        }
+        
+        // Draw main board cards
         each CardPosition in card_positions {
             if glfwGetMouseButton(_captain_window, GLFW_MOUSE_BUTTON_2) == GLFW_PRESS && it.intersecting(mouseX, mouseY) {
                 this.drawCard(opponent.board.getPointer(idx), it.x, it.y, it.scale)
@@ -625,8 +679,11 @@ struct CardGame (
         has_died bool = status.is_dead
         has_been_sad bool = status.is_sad
         has_been_on_fire bool = status.is_on_fire
+        has_been_dancing bool = status.is_dancing
         
-        if this.card_animations.hasCardAnimation(instance.network_id, undef animation CardAnimation) {
+        if has_been_dancing {
+            texture = now % 1.0 < 0.5 ? instance.ct.stand1 : instance.ct.cheer
+        } else if this.card_animations.hasCardAnimation(instance.network_id, undef animation CardAnimation) {
             texture = animation.texture
         } else if has_been_sad {
             texture = now % 1.0 < 0.5 ? instance.ct.sad1 : instance.ct.sad2
@@ -642,6 +699,11 @@ struct CardGame (
         if has_died, captDrawOpacity(0.5f)
         drawCentered(*texture, position.x, position.y, position.scale * CHARACTER_WIDTH, position.scale * CHARACTER_HEIGHT)
         if has_died, captDrawOpacity(1.0f)
+        
+        if status.is_raging {
+            // Draw rage symbol if raging
+            drawCentered(now % 1.0 < 0.5 ? textures.rage1 : textures.rage2, position.x, position.y, position.scale * CHARACTER_WIDTH, position.scale * CHARACTER_HEIGHT)
+        }
         
         if has_been_on_fire {
             // Draw in front fire
@@ -663,7 +725,33 @@ struct CardGame (
             captDrawOpacity(this.alert.getPointer().getAmountAwayFromCenter())
         }
         
-        repeat count {
+        if this.playing_wizards_aid_animation {
+            now double = glfwGetTime()
+            
+            if this.wizards_aid_animation_beginning == 0.0 {
+                this.wizards_aid_animation_beginning = now
+            }
+            
+            // TODO: Maybe store texture list into array or something
+            // that lives for the duration of the program
+            wizards_aid_texture *CaptTexture
+            switch cast int (7.0 * 1.5 * (now - this.wizards_aid_animation_beginning)) {
+            case 0, wizards_aid_texture = &textures.wizards_aid1
+            case 1, wizards_aid_texture = &textures.wizards_aid2
+            case 2, wizards_aid_texture = &textures.wizards_aid3
+            case 3, wizards_aid_texture = &textures.wizards_aid4
+            case 4, wizards_aid_texture = &textures.wizards_aid5
+            case 5, wizards_aid_texture = &textures.wizards_aid6
+            case 6, wizards_aid_texture = &textures.wizards_aid7
+            default wizards_aid_texture = &textures.wizards_aid7
+            }
+            
+            drawCentered(*wizards_aid_texture, center_x, center_y, MANA_WIDTH, MANA_HEIGHT)
+            
+            if this.wizards_aid_animation_beginning + 0.6666666666667 <= now {
+                this.playing_wizards_aid_animation = false
+            }
+        } else repeat count {
             captDrawTexture(textures.mana, center_x + x_offset, center_y - MANA_HEIGHT / 2.0f, MANA_WIDTH, MANA_HEIGHT)
             x_offset += MANA_XADVANCE
         }
@@ -696,6 +784,16 @@ struct CardGame (
     func calculateWhetherEndTurnButtonIsHovered(mouseX, mouseY float) bool {
         this.is_end_turn_button_hovered = isButtonHovered(this, func &getEndTurnButtonPosition(*CardGame, *float, *float), mouseX, mouseY)
         return this.is_end_turn_button_hovered
+    }
+    
+    func getDrawCardButtonPosition(out x, y *float) {
+        *x = captViewWidth() - MAIN_MENU_BUTTON_WIDTH - 16.0f
+        *y = captViewHeight() - MAIN_MENU_BUTTON_HEIGHT * 2.0f - 16.0f * 2.0f
+    }
+    
+    func calculateWhetherDrawCardButtonIsHovered(mouseX, mouseY float) bool {
+        this.is_draw_card_button_hovered = isButtonHovered(this, func &getDrawCardButtonPosition(*CardGame, *float, *float), mouseX, mouseY)
+        return this.is_draw_card_button_hovered
     }
     
     func getMyCardPositionFromNetworkID(network_id CardNetworkID, out position *CardPosition) successful {
@@ -785,6 +883,30 @@ struct CardGame (
         }
     }
     
+    func getMyStatCardPosition(in board_positions <CardPosition> List, out x *float, out y *float) {
+        if board_positions.length > 0 {
+            *x = board_positions.getPointer(0).x - CARD_PADDING - CARD_WIDTH
+            *y = board_positions.getPointer(0).y
+            return
+        }
+        
+        *x = captViewWidth() / 2.0f
+        *y = captViewHeight() / 2.0f + (MANA_HEIGHT / 2.0f + MANA_PADDING + CARD_HEIGHT / 2.0f)
+        return
+    }
+    
+    func getOpponentsStatCardPosition(in board_positions <CardPosition> List, out x *float, out y *float) {
+        if board_positions.length > 0 {
+            *x = board_positions.getPointer(0).x - CARD_PADDING - CARD_WIDTH
+            *y = board_positions.getPointer(0).y
+            return
+        }
+        
+        *x = captViewWidth() / 2.0f
+        *y = captViewHeight() / 2.0f - (MANA_HEIGHT / 2.0f + MANA_PADDING + CARD_HEIGHT / 2.0f)
+        return
+    }
+    
     func playAnimation(animation *CardAnimation) {
         // NOTE: Takes ownership of 'animation *CardAnimation'
         animation.start = glfwGetTime()
@@ -837,5 +959,10 @@ struct CardGame (
             delete it
         }
         this.particles.length = 0
+    }
+    
+    func playWizardsAidAnimation {
+        this.playing_wizards_aid_animation = true
+        this.wizards_aid_animation_beginning = 0.0
     }
 }

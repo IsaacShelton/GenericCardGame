@@ -1,3 +1,59 @@
+wizards_aid
+ spell
+ title Wizard's Aid
+ description Gain 4 mana points
+ cost 2
+ gives-mana 4
+wizard_ward
+ stat
+ title Wizard Ward
+ description All friendly creatures take 1 less damage from attacks
+ cost 4
+ applies-resistance 1
+spicy_soup
+ spell
+ title Spicy Soup
+ description Inflicts rage on a creature, friend or foe.
+ cost 2
+ usage prebattle
+ requires-target
+ applies-rage
+moral_support
+ stat
+ title Moral Support
+ description All friendly creatures heal 1 hp per turn
+ cost 2
+ applies-healing 1
+better_wifi
+ stat
+ title Better WiFi
+ description Reduces the cost of drawing extra cards by 1
+ cost 1
+ draw-cost-reduction 1
+bag_of_chips
+ spell
+ title Bag of Chips
+ description Heals a card by 10, and increases their attack by 3
+ cost 3
+ usage prebattle
+ requires-target
+ applies-healing 10
+ applies-attack 3
+dance_party
+ spell
+ title Dance Party
+ description Makes all creatures dance for 2 turns, preventing them from attacking
+ cost 3
+ usage spawnphase
+ everybody-dance-now 2
+match
+ spell
+ title Match
+ description Sets a creature on fire
+ cost 1
+ usage prebattle
+ requires-target
+ applies-on-fire
 lettuce_guy
  creature
  title Lettuce Guy
@@ -96,22 +152,22 @@ stick_guy
 asteroid
  creature
  title Asteroid
- description It's a giant asteroid
+ description It's a giant asteroid. Only dies if killed at 1 HP
  cost 2
  hp 6
  attack 2
  offense sharp
  defense shielded
- developer
+ endure 1
 confused_alien
  creature
  title Confused Alien
- description The alien is confused. Like very confused. So confused
+ description Cannot choose who this creature attacks
  cost 3
  hp 6
  attack 4
  offense magic
  defense flesh
- developer
+ random-victim
 
 

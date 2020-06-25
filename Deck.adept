@@ -69,9 +69,13 @@ struct Deck (blueprints <CardBlueprint> List) {
                 else if key == "fire-resistant",        traits.fire_resistant = true
                 else if key == "invulnerable-to-blunt", traits.invulnerable_to_blunt = true
                 else if key == "must-be-attacked-last", traits.must_be_attacked_last = true
+                else if key == "random-victim",         traits.random_victim = true
+                else if key == "rage",                  traits.rage = true
                 
                 else if key == "requires-target",       traits.requires_target = true
-                else if key == "insta-kill",            traits.insta_kill = true
+                else if key == "insta-kill",            traits.insta_kill = true; traits.requires_target = true
+                else if key == "applies-on-fire",       traits.applies_on_fire = true; traits.requires_target = true
+                else if key == "applies-rage",          traits.applies_rage = true; traits.requires_target = true
                 else {
                     print("WARNING: Unrecognized card marker trait '%'" % key)
                 }
@@ -143,9 +147,17 @@ struct Deck (blueprints <CardBlueprint> List) {
                 else if key == "spreads-fire",       dest = &traits.spreads_fire
                 else if key == "resistant-over",     dest = &traits.resistant_over
                 else if key == "gains-hp",           dest = &traits.gains_hp
+                else if key == "endure",             dest = &traits.endure
                 
-                else if key == "applies-shield",     dest = &traits.applies_shield; traits.requires_target = true
-                else if key == "draw-immediately",   dest = &traits.draw_immediately
+                else if key == "applies-shield",      dest = &traits.applies_shield; traits.requires_target = true
+                else if key == "draw-immediately",    dest = &traits.draw_immediately
+                else if key == "everybody-dance-now", dest = &traits.everybody_dance_now
+                else if key == "applies-healing",     dest = &traits.applies_healing; traits.requires_target = true
+                else if key == "applies-attack",      dest = &traits.applies_attack; traits.requires_target = true
+                
+                else if key == "draw-cost-reduction", dest = &traits.draw_cost_reduction
+                else if key == "applies-resistance",  dest = &traits.applies_resistance; traits.requires_target = true
+                else if key == "gives-mana",  dest = &traits.gives_mana
                 
                 if dest {
                     *dest = int_value

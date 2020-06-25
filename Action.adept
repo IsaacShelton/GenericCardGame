@@ -17,8 +17,8 @@ import 'main.adept'
 
 // (battlephase)
 // (drawphase)
-// isaac@draw 3
-// andy@draw 3
+// isaac@draw
+// andy@draw
 
 // (next spawn phase)
 
@@ -97,7 +97,7 @@ struct Action (command_text String) {
                 return false
             }
             
-            subject.spawnCard(card_blueprint_identifier, network_object_id.toUlong(), position_relation, position_reference.toUlong(), particles, is_me)
+            subject.spawnCard(card_blueprint_identifier, network_object_id.toUlong(), position_relation, position_reference.toUlong(), particles, is_me, state.global_dancing)
             
             if subject && !is_me {
                 // Reduce the number of dummy cards in the opponents hand
@@ -165,6 +165,17 @@ struct Action (command_text String) {
             }
             
             state.spell_orders.add(spellOrder(subject.player_id, blueprint, victim.toUlong(), randomness.toUlong()))
+            return true
+        } else if tokens.get(0) == "@draw" {
+            if tokens.length != 1 {
+                print("ERROR: Action.apply() on @draw command with mismatching arity -> '%'" % this.command_text)
+                return false
+            }
+            
+            unless is_me {
+                subject.drawCardsFromDeck(1, false)
+            }
+            
             return true
         } else {
             print("WARNING: Unrecognized gameplay action '%'" % this.command_text)

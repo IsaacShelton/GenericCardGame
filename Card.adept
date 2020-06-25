@@ -94,11 +94,21 @@ struct CardInstance (
         this.network_id = network_id
     }
     
+    func heal(amount int) successful {
+        // Returns whether any healing was done
+        if this.hp == this.max_hp, return false
+        
+        if this.hp + amount >= this.max_hp, this.hp = this.max_hp
+        else                                this.hp += amount
+        return true
+    }
+    
     func isDead bool = this.hp <= 0
     func isSad bool {
         if this.traits.on_fire && !this.traits.fire_resistant, return true
         return false
     }
+    func isDancing bool = this.traits.dancing > 0
 }
 
 func cardInstance(blueprint *CardBlueprint) CardInstance {
