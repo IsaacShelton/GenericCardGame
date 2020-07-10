@@ -16,11 +16,12 @@ struct SoundEffects (
     }
     
     func unload {
+        each SoundPlayer in this.players, it.stop(); it.destroy()
+        
         this.spawn.destroy()
         this.button.destroy()
         this.back.destroy()
         
-        each SoundPlayer in this.players, it.destroy()
         this.players.length = 0
     }
     

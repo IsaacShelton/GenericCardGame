@@ -104,8 +104,10 @@ struct SoundTrack (
     }
     
     func destroy {
-        each Sound in this.tracks, it.destroy()
+        this.mixer.stop()
         this.mixer.destroy()
+        
+        each Sound in this.tracks, it.destroy()
     }
 }
 
