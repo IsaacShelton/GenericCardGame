@@ -1,0 +1,47 @@
+
+import 'main.adept'
+import 'soundutils.adept'
+
+struct SoundEffects (
+    spawn, button, back Sound,
+    players <SoundPlayer> List,
+    disable_sfx bool
+) {
+    func load {
+        sfx_folder String = where() + "assets/sfx/"
+        this.spawn.load(sfx_folder + "spawn.wav", false, 1.0f)
+        this.button.load(sfx_folder + "button.wav", false, 1.0f)
+        this.back.load(sfx_folder + "back.wav", false, 1.0f)
+        this.disable_sfx = false
+    }
+    
+    func unload {
+        this.spawn.destroy()
+        this.button.destroy()
+        this.back.destroy()
+        
+        each SoundPlayer in this.players, it.destroy()
+        this.players.length = 0
+    }
+    
+    func update {
+        each SoundPlayer in this.players, unless it.isPlaying() {
+            it.destroy()
+            this.players.remove(idx--)
+        }
+    }
+    
+    func toggle {
+        this.disable_sfx = !this.disable_sfx
+        if this .disable_sfx, each SoundPlayer in this.players, it.stop()
+    }
+    
+    func play(sound Sound) {
+        if this.disable_sfx, return
+        player *SoundPlayer = this.players.add()
+        player.create()
+        player.play(sound)
+    }
+}
+
+sfx SoundEffects

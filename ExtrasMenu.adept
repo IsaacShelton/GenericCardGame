@@ -1,0 +1,224 @@
+
+import 'main.adept'
+
+EXTRAS_ENTRY_HEIGHT == 14.0f * 1.5f
+
+struct ExtrasMenu (
+    entries <Text> Optional,
+    count usize,
+    is_back_button_hovered bool,
+    y_offset float,
+    instance <CardInstance> Optional,
+    details <Text> Optional,
+    prelist <ExtrasPrelistItem> List,
+    sort_by_kind CardKind,
+    arrangement ExtrasArrangement
+) {
+    func setup {
+        this.count = 0
+        this.is_back_button_hovered = false
+        this.y_offset = 0.0f
+    }
+    
+    func enter {
+        this.sort_by_kind = CardKind::NONE
+        this.arrangement = ExtrasArrangement::ALPHABETICALLY
+        this.resort()
+    }
+    
+    func exit {
+        if this.details.has {
+            this.details.getPointer().destroy()
+            this.details.rid()
+        }
+        if this.entries.has {
+            this.entries.getPointer().destroy()
+            this.entries.rid()
+        }
+        this.prelist.clear()
+    }
+    
+    func resort {
+        if this.entries.has {
+            this.entries.getPointer().destroy()
+            this.entries.rid()
+        }
+        
+        this.prelist.clear()
+        
+        everything String
+        each CardBlueprint in static gamedata.deck.blueprints {
+            if this.sort_by_kind != CardKind::NONE && it.kind != this.sort_by_kind, continue
+            
+            prelist_item *ExtrasPrelistItem = this.prelist.add()
+            prelist_item.title = it.title.replace('\n'ub, " ")
+            prelist_item.index = idx
+        }
+        
+        if this.arrangement == ExtrasArrangement::ALPHABETICALLY,
+            qsort(this.prelist.items, this.prelist.length, sizeof ExtrasPrelistItem, func &compareExtrasPrelistItemsAlphabetically(ptr, ptr))
+        else if this.arrangement == ExtrasArrangement::OLDEST,
+            this.prelist.reverse()
+        
+        each ExtrasPrelistItem in static this.prelist {
+            everything.append(it.title + "\n")
+        }
+        
+        this.entries.set(text(everything))
+        this.count = gamedata.deck.blueprints.length
+        
+        this.selectEntry(0)
+    }
+    
+    func __defer__ {
+        // NOTE: Due to a compiler issue, we have to force a __defer__ method to
+        // be automatically generated here
+    }
+    
+    func step {
+        captMouseViewPosition(undef mouseX float, undef mouseY float)
+        this.is_back_button_hovered = isButtonHovered(this, func &getBackButtonPosition(*ExtrasMenu, *float, *float), mouseX, mouseY)
+    }
+    
+    func click(mouseX, mouseY float, button int){
+        unless button == 1, return
+        
+        if mouseX >= captViewWidth() - 128.0f && mouseY <= 24.0f {
+            // Arrangement
+            this.arrangement = cycle(this.arrangement)
+            this.resort()
+            return
+        }
+        
+        if mouseX >= captViewWidth() - 256.0f && mouseX <= captViewWidth() - 128.0f && mouseY <= 24.0f {
+            // Card Kind
+            this.sort_by_kind = cycle(this.sort_by_kind)
+            this.resort()
+            return
+        }
+        
+        this.is_back_button_hovered = isButtonHovered(this, func &getBackButtonPosition(*ExtrasMenu, *float, *float), mouseX, mouseY)
+        if this.is_back_button_hovered {
+            gamedata.setScene('optionsmenu')
+            sfx.play(sfx.back)
+            return
+        }
+        
+        if mouseX > captViewWidth() - 256.0f {
+            selected long = cast long ((mouseY - this.y_offset - 24.0f) / EXTRAS_ENTRY_HEIGHT)
+            if selected > this.prelist.length, selected = cast long this.prelist.length - 1
+            if selected < 0, selected = 0
+            
+            this.selectEntry(selected as usize)
+            sfx.play(sfx.button)
+        }
+    }
+    
+    func char(c uint) {}
+    func key(key, scancode, action, mods int) {}
+    
+    func scroll(x_offset, y_offset float) {
+        this.y_offset += y_offset * 10.0f
+    }
+    
+    func draw {
+        this.getBackButtonPosition(undef back_x float, undef back_y float)
+        drawButton("back", back_x, back_y, this.is_back_button_hovered)
+        
+        if this.y_offset > 0.0f, this.y_offset = 0.0f
+        if EXTRAS_ENTRY_HEIGHT * this.count as float + this.y_offset + 24.0f < captViewHeight(),
+            this.y_offset = captViewHeight() - EXTRAS_ENTRY_HEIGHT * this.count as float - 24.0f
+        
+        x float = captViewWidth() - 256.0f
+        y float = 0.0f + 24.0f
+        repeat static this.count {
+            captDrawTexture(textures.entry, x, y + this.y_offset, 256.0f, EXTRAS_ENTRY_HEIGHT)
+            y += EXTRAS_ENTRY_HEIGHT
+        }
+        
+        if this.entries.has,
+            this.entries.getPointer().draw(x + 4.0f, 4.0f + 24.0f + this.y_offset, textures.font_black)
+        
+        captDrawTexture(textures.glass, captViewWidth() - 512.0f, 0.0f, 256.0f, captViewHeight())
+        
+        left_filter_texture *CaptTexture = &textures.left_filter_none
+        switch this.sort_by_kind {
+        case CardKind::CREATURE, left_filter_texture = &textures.left_filter_creature
+        case CardKind::SPELL,    left_filter_texture = &textures.left_filter_spell
+        case CardKind::STAT,     left_filter_texture = &textures.left_filter_stat
+        }
+        
+        captDrawTexture(*left_filter_texture, captViewWidth() - 256.0f, 0.0f, 128.0f, 24.0f)
+        captDrawTexture(textures.right_filter, captViewWidth() - 128.0f, 0.0f, 128.0f, 24.0f)
+        
+        sort_by_kind_string String = toString(this.sort_by_kind)
+        if sort_by_kind_string == "None", sort_by_kind_string = "All"
+        drawTextCentered(sort_by_kind_string, captViewWidth() - 192.0f, 12.0f, textures.font_black)
+        drawTextCentered(toString(this.arrangement), captViewWidth() - 64.0f, 12.0f, textures.font_black)
+        
+        if this.instance.has {
+            drawCard(this.instance.getPointer(), captViewWidth() - 256.0f - 128.0f, 128.0f, 2.0f)
+            
+            ct *CardTextures = &this.instance.getPointer().ct
+            character_texture *CaptTexture = glfwGetTime() % 1.0 < 0.5 ? ct.stand1 : ct.stand2
+            unless character_texture == &textures.placeholder,
+                captDrawTexture(*character_texture, (captViewWidth() - 512.0f) / 2.0f - 32.0f, captViewHeight() / 2.0f - 32.0f, 64.0f, 64.0f)
+            else
+                drawTextCentered(toString(this.instance.getPointer().kind) + " card", (captViewWidth() - 512.0f) / 2.0f, captViewHeight() / 2.0f)
+        }
+        
+        if this.details.has,
+            this.details.getPointer().draw(captViewWidth() - 512.0f + 16.0f, 16.0f + 256.0f, textures.font_black)
+    }
+    
+    func getBackButtonPosition(out x, y *float){
+        *x = 16.0f
+        *y = captViewHeight() - 16.0f - MAIN_MENU_BUTTON_HEIGHT
+    }
+    
+    func selectEntry(index usize) {
+        if this.details.has {
+            this.details.getPointer().destroy()
+            this.details.rid()
+        }
+        
+        blueprint *CardBlueprint = gamedata.deck.blueprints.getPointer(this.prelist.getPointer(index).index)
+        this.instance.set(cardInstance(blueprint))
+        this.details.set(text(blueprint.toString(), 8.0f))
+    }
+}
+
+struct ExtrasPrelistItem (title String, index usize)
+
+func compareExtrasPrelistItemsAlphabetically(a_ptr, b_ptr ptr) int {
+    a *ExtrasPrelistItem = a_ptr as *ExtrasPrelistItem
+    b *ExtrasPrelistItem = b_ptr as *ExtrasPrelistItem
+    return a.title.myCompare(b.title)
+}
+
+func myCompare(this *String, other String) int {
+    min_length usize = min(this.length, other.length)
+    result int = strncmp(this.array, other.array, min_length)
+    if result == 0, return this.length as int - other.length as int
+    return result
+}
+
+enum ExtrasArrangement (ALPHABETICALLY, NEWEST, OLDEST)
+
+func cycle(arrangement ExtrasArrangement) ExtrasArrangement {
+    switch arrangement {
+    case ExtrasArrangement::ALPHABETICALLY, return ExtrasArrangement::NEWEST
+    case ExtrasArrangement::NEWEST, return ExtrasArrangement::OLDEST
+    case ExtrasArrangement::OLDEST, return ExtrasArrangement::ALPHABETICALLY
+    }
+    return ExtrasArrangement::ALPHABETICALLY
+}
+
+func toString(arrangement ExtrasArrangement) String {
+    switch arrangement {
+    case ExtrasArrangement::ALPHABETICALLY, return "A-Z"
+    case ExtrasArrangement::NEWEST, return "Newest"
+    case ExtrasArrangement::OLDEST, return "Oldest"
+    }
+    return "N/A"
+}

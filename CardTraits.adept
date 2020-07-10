@@ -5,34 +5,42 @@ struct CardTraits (
     developer bool,
     usage CardUsage,
     
-    battlecry_adjacent int,     // (creature only)
-    shield int,                 // (creature only)
-    on_fire bool,               // (creature only)
-    spreads_fire int,           // (creature only)
-    fire_resistant bool,        // (creature only)
-    invulnerable_to_blunt bool, // (creature only)
-    must_be_attacked_last bool, // (creature only)
-    resistant_over int,         // (creature only)
-    separation bool,            // (creature only)
-    gains_hp int,               // (creature only)
-    random_victim bool,         // (creature only)
-    endure int,                 // (creature only)
-    dancing int,                // (creature only)
-    rage bool,                  // (creature only)
+    battlecry_adjacent int,      // (creature only)
+    shield int,                  // (creature only)
+    on_fire bool,                // (creature only)
+    spreads_fire int,            // (creature only)
+    fire_resistant bool,         // (creature only)
+    invulnerable_to_blunt bool,  // (creature only)
+    must_be_attacked_last bool,  // (creature only)
+    resistant_over int,          // (creature only)
+    separation bool,             // (creature only)
+    gains_hp int,                // (creature only)
+    gains_attack int,            // (creature only)
+    random_victim bool,          // (creature only)
+    endure int,                  // (creature only)
+    dancing int,                 // (creature only)
+    rage bool,                   // (creature only)
+    can_heal bool,               // (creature only)
+    recycle int,                 // (creature only)
+    burning int,                 // (creature only)
+    flimsy int,                  // (creature only)
+    attack_equals_hp bool,       // (creature only)
     
-    applies_shield int,         // (spell only)
-    draw_immediately int,       // (spell only)
-    requires_target bool,       // (spell only)
-    insta_kill      bool,       // (spell only)
-    applies_on_fire bool,       // (spell only)
-    everybody_dance_now int,    // (spell only)
-    applies_healing int,        // (spell and stat)
-    applies_attack int,         // (spell only)
-    applies_rage bool,          // (spell only)
-    gives_mana int,             // (spell only)
+    applies_shield int,          // (spell only)
+    draw_immediately int,        // (spell only)
+    requires_target bool,        // (spell only)
+    insta_kill      bool,        // (spell only)
+    applies_on_fire bool,        // (spell only)
+    everybody_dance_now int,     // (spell only)
+    applies_healing int,         // (spell and stat)
+    applies_attack int,          // (spell only)
+    applies_rage bool,           // (spell only)
+    gives_mana int,              // (spell only)
+    everybody_burn_now int,      // (spell only)
     
-    draw_cost_reduction int,    // (stat only)
-    applies_resistance int      // (stat only)
+    draw_cost_reduction int,     // (stat only)
+    applies_resistance int,      // (stat only)
+    ignore_effect_damage bool    // (stat only)
 ) {
     func defaults {
         this.developer = false
@@ -51,6 +59,11 @@ struct CardTraits (
         this.endure = 0
         this.dancing = 0
         this.rage = false
+        this.can_heal = false
+        this.recycle = 0
+        this.burning = 0
+        this.flimsy = 0
+        this.attack_equals_hp = false
         
         this.applies_shield = 0
         this.draw_immediately = 0
@@ -62,48 +75,58 @@ struct CardTraits (
         this.applies_attack = 0
         this.applies_rage = false
         this.gives_mana = 0
+        this.everybody_burn_now = 0
         
         this.draw_cost_reduction = 0
         this.applies_resistance = 0
+        this.ignore_effect_damage = false
     }
     
-    func toString String {
+    func toString(newlines bool) String {
         result String = ""
+        separator String = newlines ? "\n" : " "
         
-        if this.developer,               result.append("developer ")
-        result.append("usage: " + toString(this.usage) + " ")
+        if this.developer,               result.append("developer" + separator)
+        result.append("usage " + toString(this.usage) + separator)
         
         // Primarily for Creatures
-        if this.battlecry_adjacent != 0, result.append("battlecry-adjacent:% " % this.battlecry_adjacent)
-        if this.shield != 0,             result.append("shield:% " % this.shield)
-        if this.on_fire,                 result.append("on-fire ")
-        if this.spreads_fire != 0,       result.append("spreads-fire:% " % this.spreads_fire)
-        if this.fire_resistant,          result.append("fire-resistant ")
-        if this.invulnerable_to_blunt,   result.append("invulnerable-to-blunt ")
-        if this.must_be_attacked_last,   result.append("must-be-attacked-last ")
-        if this.resistant_over != 0,     result.append("resistant-over:% " % this.resistant_over)
-        if this.separation,              result.append("separation ")
-        if this.gains_hp != 0,           result.append("gains-hp:% " % this.gains_hp)
-        if this.random_victim,           result.append("random-victim ")
-        if this.endure != 0,             result.append("endure:% " % this.endure)
-        if this.dancing != 0,            result.append("dancing:% " % this.dancing)
-        if this.rage,                    result.append("rage ")
+        if this.battlecry_adjacent != 0, result.append("battlecry-adjacent %" % this.battlecry_adjacent + separator)
+        if this.shield != 0,             result.append("shield % " % this.shield + separator)
+        if this.on_fire,                 result.append("on-fire" + separator)
+        if this.spreads_fire != 0,       result.append("spreads-fire %" % this.spreads_fire + separator)
+        if this.fire_resistant,          result.append("fire-resistant" + separator)
+        if this.invulnerable_to_blunt,   result.append("invulnerable-to-blunt"  + separator)
+        if this.must_be_attacked_last,   result.append("must-be-attacked-last"  + separator)
+        if this.resistant_over != 0,     result.append("resistant-over %" % this.resistant_over + separator)
+        if this.separation,              result.append("separation" + separator)
+        if this.gains_hp != 0,           result.append("gains-hp %" % this.gains_hp + separator)
+        if this.random_victim,           result.append("random-victim" + separator)
+        if this.endure != 0,             result.append("endure %" % this.endure + separator)
+        if this.dancing != 0,            result.append("dancing %" % this.dancing + separator)
+        if this.rage,                    result.append("rage" + separator)
+        if this.can_heal,                result.append("can-heal" + separator)
+        if this.recycle != 0,            result.append("recycle %" % this.recycle + separator)
+        if this.burning != 0,            result.append("burning %" % this.burning + separator)
+        if this.flimsy != 0,             result.append("flimsy %" % this.flimsy + separator)
+        if this.attack_equals_hp,        result.append("attack-equals-hp" + separator)
         
         // Primarily for Spells
-        if this.applies_shield,          result.append("applies-shield:% " % this.applies_shield)
-        if this.draw_immediately,        result.append("draw-immediately:% " % this.draw_immediately)
-        if this.requires_target,         result.append("requires-target ")
-        if this.insta_kill,              result.append("insta-kill ")
-        if this.applies_on_fire,         result.append("applies-on-fire ")
-        if this.everybody_dance_now,     result.append("everybody-dance-now:% " % this.everybody_dance_now)
-        if this.applies_healing,         result.append("applies-healing:% " % this.applies_healing)
-        if this.applies_attack,          result.append("applies-attack:% " % this.applies_attack)
-        if this.applies_rage,            result.append("applies-rage ")
-        if this.gives_mana,              result.append("gives-mana:% " % this.gives_mana)
+        if this.applies_shield,          result.append("applies-shield %" % this.applies_shield + separator)
+        if this.draw_immediately,        result.append("draw-immediately %" % this.draw_immediately + separator)
+        if this.requires_target,         result.append("requires-target" + separator)
+        if this.insta_kill,              result.append("insta-kill" + separator)
+        if this.applies_on_fire,         result.append("applies-on-fire" + separator)
+        if this.everybody_dance_now,     result.append("everybody-dance-now %" % this.everybody_dance_now + separator)
+        if this.applies_healing,         result.append("applies-healing %" % this.applies_healing + separator)
+        if this.applies_attack,          result.append("applies-attack %" % this.applies_attack + separator)
+        if this.applies_rage,            result.append("applies-rage" + separator)
+        if this.gives_mana,              result.append("gives-mana %" % this.gives_mana + separator)
+        if this.everybody_burn_now,      result.append("everybody-burn-now %" % this.everybody_burn_now + separator)
         
         // Primarily for Stats
-        if this.draw_cost_reduction,     result.append("draw-cost-reduction:% " % this.draw_cost_reduction)
-        if this.applies_resistance,      result.append("applies_resistance:% " % this.applies_resistance)
+        if this.draw_cost_reduction,     result.append("draw-cost-reduction %" % this.draw_cost_reduction + separator)
+        if this.applies_resistance,      result.append("applies-resistance %" % this.applies_resistance + separator)
+        if this.ignore_effect_damage,    result.append("ignore-effect-damage" + separator)
         
         result.trim()
         return result.commit()

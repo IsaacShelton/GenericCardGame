@@ -1,0 +1,112 @@
+
+import 'main.adept'
+
+SOUND_TRACK_COUNT == 8
+
+struct SoundTrack (
+    tracks <Sound> List,
+    mixer SoundMixer,
+    current, count int,
+    fading_out_into bool,
+    wait_frames int,
+    is_paused bool
+) {
+    func init(loadedOneSongCallback func(ptr) void, user_pointer ptr) {
+        music_folder String = where() + "assets/music/"
+        tracks_count usize = SOUND_TRACK_COUNT
+        
+        repeat tracks_count {
+            song *Sound = this.tracks.add()
+            song.load(music_folder + "%.ogg" % (idx + 1), false, 0.3f)
+            
+            if loadedOneSongCallback, loadedOneSongCallback(user_pointer)
+        }
+        
+        this.mixer.create()
+        this.count = tracks_count
+        
+        this.fading_out_into = false
+        this.wait_frames = 0
+        this.is_paused = false
+    }
+    
+    func start {
+        #if no_music
+            return
+        #end
+        
+        this.current = 1
+        this.mixer.play(this.tracks.get(0))
+    }
+    
+    func update {
+        this.mixer.update()
+        
+        if this.fading_out_into {
+            if this.mixer.isSilent() {
+                this.wait_frames = 60
+                this.fading_out_into = false
+            }
+            return
+        }
+        
+        if this.wait_frames > 0 && --this.wait_frames == 0 {
+            this.nextSong()
+        }
+        
+        this.maybeNextSong()
+    }
+    
+    func maybeNextSong {
+        #if no_music
+            return
+        #end
+        
+        unless this.mixer.isPlaying() || this.is_paused, this.nextSong()
+    }
+    
+    func nextSong {
+        if this.is_paused, return
+        if this.current++ == this.count, this.current = 1
+        this.playTrack(this.current)
+    }
+    
+    func fadeOutIntoNextSong {
+        if this.is_paused, return
+        this.mixer.fadeOut()
+        this.fading_out_into = true
+    }
+    
+    func playTrack(track_id int) {
+        #if no_music
+            return
+        #end
+        if this.is_paused, return
+        this.mixer.play(this.tracks.get(track_id - 1))
+    }
+    
+    func toggle {
+        if this.is_paused {
+            this.mixer.play()
+        } else {
+            this.mixer.pause()
+        }
+        
+        this.is_paused = !this.is_paused
+    }
+    
+    func stop {
+        #if no_music
+            return
+        #end
+        
+        this.mixer.stop()
+    }
+    
+    func destroy {
+        each Sound in this.tracks, it.destroy()
+        this.mixer.destroy()
+    }
+}
+
+soundtrack SoundTrack

@@ -25,28 +25,7 @@ struct CardInstance (
     ct CardTextures,
     traits CardTraits
 ) {
-    func clone CardInstance {
-        instance POD CardInstance
-        instance.instance_id = this.instance_id
-        instance.network_id = this.network_id
-        instance.name = this.name.clone()
-        instance.title = this.title.clone()
-        instance.description = this.description.clone()
-        instance.kind = this.kind
-        instance.cost = this.cost
-        instance.hp = this.hp
-        instance.max_hp = this.max_hp
-        instance.attack = this.attack
-        instance.offense = POD this.offense
-        instance.defense = POD this.defense
-        instance.attributes = this.attributes.clone()
-        instance.modifiers = this.modifiers.clone()
-        instance.ct = this.ct
-        instance.traits = this.traits
-        return instance
-    }
-    
-    func __assign__(other POD CardInstance) {
+    func __assign__(other CardInstance) {
         this.instance_id = other.instance_id
         this.network_id = other.network_id
         this.name = other.name.clone()
@@ -63,6 +42,11 @@ struct CardInstance (
         this.modifiers = other.modifiers.clone()
         this.ct = other.ct
         this.traits = other.traits
+    }
+    
+    func clone CardInstance {
+        instance POD CardInstance = *this
+        return instance
     }
     
     func getStandardCardTexture CaptTexture {
@@ -87,7 +71,7 @@ struct CardInstance (
         print(" attributes:")
         each CardEffect in this.attributes, print("  % = %" % it.identifier % it.value)
         print(" textures: %" % (this.ct.portrait != &textures.placeholder))
-        print(" traits: %" % this.traits.toString())
+        print(" traits: %" % this.traits.toString(false))
     }
     
     func assignNetworkID(network_id CardNetworkID) {

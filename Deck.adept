@@ -61,21 +61,25 @@ struct Deck (blueprints <CardBlueprint> List) {
         key StringView
         each String in details {
             if isMarkerDetail(it, &key) {
-                if      key == "creature",              kind = CardKind::CREATURE
-                else if key == "spell",                 kind = CardKind::SPELL
-                else if key == "stat",                  kind = CardKind::STAT
-                else if key == "developer",             traits.developer = true
-                else if key == "on-fire",               traits.on_fire = true
-                else if key == "fire-resistant",        traits.fire_resistant = true
-                else if key == "invulnerable-to-blunt", traits.invulnerable_to_blunt = true
-                else if key == "must-be-attacked-last", traits.must_be_attacked_last = true
-                else if key == "random-victim",         traits.random_victim = true
-                else if key == "rage",                  traits.rage = true
+                if      key == "creature",                kind = CardKind::CREATURE
+                else if key == "spell",                   kind = CardKind::SPELL
+                else if key == "stat",                    kind = CardKind::STAT
+                else if key == "developer",               traits.developer = true
+                else if key == "on-fire",                 traits.on_fire = true
+                else if key == "fire-resistant",          traits.fire_resistant = true
+                else if key == "invulnerable-to-blunt",   traits.invulnerable_to_blunt = true
+                else if key == "must-be-attacked-last",   traits.must_be_attacked_last = true
+                else if key == "random-victim",           traits.random_victim = true
+                else if key == "rage",                    traits.rage = true
+                else if key == "can-heal",                traits.can_heal = true
+                else if key == "attack-equals-hp",        traits.attack_equals_hp = true
                 
-                else if key == "requires-target",       traits.requires_target = true
-                else if key == "insta-kill",            traits.insta_kill = true; traits.requires_target = true
-                else if key == "applies-on-fire",       traits.applies_on_fire = true; traits.requires_target = true
-                else if key == "applies-rage",          traits.applies_rage = true; traits.requires_target = true
+                else if key == "requires-target",         traits.requires_target = true
+                else if key == "insta-kill",              traits.insta_kill = true
+                else if key == "applies-on-fire",         traits.applies_on_fire = true
+                else if key == "applies-rage",            traits.applies_rage = true
+                
+                else if key == "ignore-effect-damage",    traits.ignore_effect_damage = true
                 else {
                     print("WARNING: Unrecognized card marker trait '%'" % key)
                 }
@@ -147,16 +151,21 @@ struct Deck (blueprints <CardBlueprint> List) {
                 else if key == "spreads-fire",       dest = &traits.spreads_fire
                 else if key == "resistant-over",     dest = &traits.resistant_over
                 else if key == "gains-hp",           dest = &traits.gains_hp
+                else if key == "gains-attack",       dest = &traits.gains_attack
                 else if key == "endure",             dest = &traits.endure
+                else if key == "recycle",            dest = &traits.recycle
+                else if key == "burning",            dest = &traits.burning
+                else if key == "flimsy",             dest = &traits.flimsy
                 
-                else if key == "applies-shield",      dest = &traits.applies_shield; traits.requires_target = true
+                else if key == "applies-shield",      dest = &traits.applies_shield
                 else if key == "draw-immediately",    dest = &traits.draw_immediately
                 else if key == "everybody-dance-now", dest = &traits.everybody_dance_now
-                else if key == "applies-healing",     dest = &traits.applies_healing; traits.requires_target = true
-                else if key == "applies-attack",      dest = &traits.applies_attack; traits.requires_target = true
+                else if key == "applies-healing",     dest = &traits.applies_healing
+                else if key == "applies-attack",      dest = &traits.applies_attack
+                else if key == "everybody-burn-now", dest = &traits.everybody_burn_now
                 
                 else if key == "draw-cost-reduction", dest = &traits.draw_cost_reduction
-                else if key == "applies-resistance",  dest = &traits.applies_resistance; traits.requires_target = true
+                else if key == "applies-resistance",  dest = &traits.applies_resistance
                 else if key == "gives-mana",  dest = &traits.gives_mana
                 
                 if dest {
@@ -188,6 +197,12 @@ struct Deck (blueprints <CardBlueprint> List) {
         }
         
         return cardInstance(this.blueprints.getPointer(rand() % this.blueprints.length))
+    }
+    
+    func getCardByName(name String) CardInstance {
+        blueprint *CardBlueprint = this.getCardBlueprint(name)
+        unless blueprint, print("Deck.getCardByName() failed to find card '%'" % name); return this.randomCard()
+        return cardInstance(blueprint)
     }
     
     func getCardBlueprint(name String) *CardBlueprint {

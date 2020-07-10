@@ -38,17 +38,20 @@ struct OnlineMenu (
         this.calculateWhetherBackButtonIsHovered(x, y)
         if this.is_back_button_hovered {
             gamedata.setScene('mainmenu')
+            sfx.play(sfx.back)
             return
         }
         
         this.calculateWhetherCreateButtonIsHovered(x, y)
         if this.is_create_button_hovered {
             if gamedata.manager.getIsOnline(), gamedata.setScene('createmenu')
+            sfx.play(sfx.button)
             return
         }
         
         if this.calculateWhetherListingIsHovered(x, y) {
             this.joinRoom(gamedata.listings.getPointer(this.listing_hovered - 1).name)
+            sfx.play(sfx.button)
         }
     }
     
@@ -120,6 +123,7 @@ struct OnlineMenu (
     
     func joinRoom(name String) {
         gamedata.interpreter.clearRoomMovements()
+        gamedata.interpreter.clearActions()
         gamedata.interpreter.ignoreNextJoinMessageFrom(gamedata.player_name)
         gamedata.manager.writeOutgoing("$join " + name + "\n")
         gamedata.manager.writeOutgoing("$lobby\n")

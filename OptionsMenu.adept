@@ -1,0 +1,117 @@
+
+import 'main.adept'
+
+OPTIONS_BUTTON_COUNT == 4
+
+struct OptionsMenu (
+    buttons <String> List,
+    actions <func() void> List,
+    hovered_button int,
+    is_back_button_hovered bool
+) {
+    func setup {
+        this.buttons.add("extras")
+        this.buttons.add("music")
+        this.buttons.add("sfx")
+        this.actions.add(func &doOptionsExtras)
+        this.actions.add(func &doOptionsMusic)
+        this.actions.add(func &doOptionsSFX)
+        this.hovered_button = 0 // 0 == none
+        this.is_back_button_hovered = false
+    }
+    
+    func enter {}
+    func exit {}
+    
+    func __defer__ {
+        // NOTE: Due to a compiler issue, we have to force a __defer__ method to
+        // be automatically generated here
+    }
+    
+    func step {
+        this.hovered_button = 0
+        captMouseViewPosition(undef mouseX float, undef mouseY float)
+        
+        repeat OPTIONS_BUTTON_COUNT {
+            if isMouseOverOptionsMenuButton(mouseX, mouseY, idx as int + 1) {
+                this.hovered_button = idx as int + 1
+            }
+        }
+        
+        this.is_back_button_hovered = isButtonHovered(this, func &getBackButtonPosition(*OptionsMenu, *float, *float), mouseX, mouseY)
+    }
+    
+    func click(mouseX, mouseY float, button int){
+        unless button == 1, return
+        
+        repeat OPTIONS_BUTTON_COUNT {
+            if isMouseOverOptionsMenuButton(mouseX, mouseY, idx as int + 1) {
+                action func() void = this.actions.get(idx)
+                if action as ptr, action()
+                sfx.play(sfx.button)
+                return
+            }
+        }
+        
+        this.is_back_button_hovered = isButtonHovered(this, func &getBackButtonPosition(*OptionsMenu, *float, *float), mouseX, mouseY)
+        if this.is_back_button_hovered {
+            gamedata.setScene('mainmenu')
+            sfx.play(sfx.back)
+            return
+        }
+    }
+    
+    func char(c uint) {}
+    func key(key, scancode, action, mods int) {}
+    
+    func draw {
+        each button_text String in this.buttons {
+            getOptionsMenuButtonPosition(idx + 1, undef button_x float, undef button_y float)
+            drawButton(button_text, button_x, button_y, this.hovered_button == idx + 1)
+        }
+        
+        this.getBackButtonPosition(undef back_x float, undef back_y float)
+        drawButton("back", back_x, back_y, this.is_back_button_hovered)
+    }
+    
+    func getBackButtonPosition(out x, y *float){
+        *x = 16.0f
+        *y = captViewHeight() - 16.0f - MAIN_MENU_BUTTON_HEIGHT
+    }
+}
+
+func getOptionsMenuButtonPosition(button int, out x, y *float){
+    // NOTE: 'button' starts at 1
+    
+    middle_x float = captViewWidth() / 2.0f
+    middle_y float = captViewHeight() / 2.0f
+    y_starting_offset float = 64.0f - 32.0f
+    y_run float = MAIN_MENU_BUTTON_HEIGHT + 16.0f
+    
+    x_start float = middle_x - MAIN_MENU_BUTTON_WIDTH / 2.0f
+    y_start float = middle_y - y_starting_offset
+    
+    y_start += y_run * (button - 1) as float
+    
+    *x = x_start
+    *y = y_start
+}
+
+func isMouseOverOptionsMenuButton(mouse_x, mouse_y float, button int) bool {
+    getOptionsMenuButtonPosition(button, undef x float, undef y float)
+    
+    return mouse_x > x && mouse_x < x + MAIN_MENU_BUTTON_WIDTH && 
+        mouse_y > y && mouse_y < y + MAIN_MENU_BUTTON_HEIGHT
+}
+
+func doOptionsExtras {
+    gamedata.setScene('extrasmenu')
+}
+
+func doOptionsMusic {
+    soundtrack.toggle()
+}
+
+func doOptionsSFX {
+    sfx.toggle()
+}

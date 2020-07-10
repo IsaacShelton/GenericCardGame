@@ -23,10 +23,13 @@ struct Player (
             // Maximum hand limit of 10 cards for now
             if this.hand.length >= 10, return
             
-            // Since <$T> List.add() currently accepts POD $T, we must
-            // store the card instance seperately in order for __defer__
-            // to be called properly
             card CardInstance = gamedata.deck.randomCard()
+            
+            #if enable_debugging_hotkeys
+            if glfwGetKey(_captain_window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS {
+                card = gamedata.deck.getCardByName(glfwGetKey(_captain_window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS ? "isaacs_mixtape" : "paper_airplane")
+            }
+            #end
             
             // Try to avoid redrawing cards
             if is_me, repeat redrawing : 10 {
@@ -73,11 +76,7 @@ struct Player (
             }
         }
         
-        // Since <$T> List.insert() currently accepts POD $T, we must
-        // store the card instance seperately in order for __defer__
-        // to be called properly
-        tmp_card CardInstance = cardInstance(blueprint)
-        this.board.insert(destination, tmp_card)
+        this.board.insert(destination, cardInstance(blueprint))
         
         card *CardInstance = this.board.getPointer(destination)
         card.assignNetworkID(unique_network_id)
@@ -117,9 +116,13 @@ struct Player (
         each CardInstance in this.board, list_to_add_to.add(cardStatus(&it))
     }
     
-    func removeDeadCards {
+    func removeDeadCards(is_me bool) {
+        // NOTE: 'is_me' is whether this player is the "actual" player
         each CardInstance in this.board, if it.isDead() {
             unless it.traits.separation, this.supply--
+            
+            if it.traits.recycle, this.drawCardsFromDeck(it.traits.recycle, is_me)
+            
             this.board.remove(idx--)
         }
     }
@@ -254,11 +257,16 @@ struct GameState (
         switch this.phase.kind {
         case PhaseKind::SPAWN
             this.distributeMana()
-            this.reduceDancing()
+             this.reduceTimedEffects()
         }
         
         if this.phase.kind != PhaseKind::BATTLE,
             this.attack_orders.clear()
+        
+        // attack-equals-hp
+        each player Player in this.players, each CardInstance in player.board, if it.traits.attack_equals_hp {
+            it.attack = it.hp
+        }
         
         return true
     }
@@ -282,6 +290,7 @@ struct GameState (
         used_shield bool = false
         victim *CardInstance = *victim_var
         attack int = aggressor.attack
+        aggressor_owner *Player = this.findOwner(aggressor.network_id)
         victim_owner *Player = this.findOwner(victim.network_id)
         
         // dancing => You can't attack while dancing!
@@ -319,6 +328,13 @@ struct GameState (
             }
             
             attack = cast int (attack as double * 1.5)
+        }
+        
+        // can-heal
+        if aggressor.traits.can_heal && aggressor_owner == victim_owner {
+            victim.heal(aggressor.attack)
+            if particles, particles.addHealing(victim.network_id)
+            return true
         }
         
         // applies-resistance (stat card effect)
@@ -374,6 +390,10 @@ struct GameState (
                 victim.traits.on_fire = true
         }
         
+        if aggressor.traits.flimsy {
+            aggressor.hp -= aggressor.traits.flimsy
+        }
+        
         return true
     }
     
@@ -421,6 +441,11 @@ struct GameState (
             this.applyDancing(blueprint.traits.everybody_dance_now)
         }
         
+        // everybody-burn-now (for spells)
+        if blueprint.traits.everybody_burn_now {
+            this.applyBurning(blueprint.traits.everybody_burn_now)
+        }
+        
         // applies-rage (for spells)
         if blueprint.traits.applies_rage {
             victim.traits.rage = true
@@ -441,15 +466,23 @@ struct GameState (
     func applyPassiveEffects(out particles *<*CardParticle> List) {
         each player Player in this.players {
             each CardInstance in player.board {
-                // on-fire && !fire-resistant
-                if it.traits.on_fire && !it.traits.fire_resistant {
-                    it.hp -= (it.max_hp as float / 5.0f < 1.0f ? 1 : floorf(it.max_hp as float / 5.0f) as int)
+                // (on-fire || burning) && !fire-resistant
+                if (it.traits.on_fire || it.traits.burning) && !it.traits.fire_resistant {
+                    unless player.stat_card.has && player.stat_card.getPointer().traits.ignore_effect_damage {
+                        it.hp -= (it.max_hp as float / 5.0f < 1.0f ? 1 : floorf(it.max_hp as float / 5.0f) as int)
+                    }
                 }
                 
                 // gains-hp <amount>
                 if it.traits.gains_hp != 0 && it.hp > 0 {
                     it.hp += it.traits.gains_hp
                     if particles, particles.addHealing(it.network_id)
+                }
+                
+                // gains-attack <amount>
+                if it.traits.gains_attack != 0 {
+                    it.attack += it.traits.gains_attack
+                    if particles, particles.addAttackBonus(it.network_id)
                 }
             }
             
@@ -470,8 +503,10 @@ struct GameState (
     }
     
     func removeDeadCards(lose_a_heart_if_none_left bool) {
+        this_player *Player = this.getThisPlayer()
+        
         each player Player in this.players {
-            player.removeDeadCards()
+            player.removeDeadCards(&player == this_player)
             
             // Lose a heart if no creatures left on board
             if lose_a_heart_if_none_left && player.board.length == 0 {
@@ -490,12 +525,13 @@ struct GameState (
         return null
     }
     
-    func reduceDancing {
+    func reduceTimedEffects {
         if this.global_dancing > 0, this.global_dancing--
         
         each player Player in static this.players {
             each card CardInstance in static player.board {
                 if card.traits.dancing > 0, card.traits.dancing--
+                if card.traits.burning > 0, card.traits.burning--
             }
         }
     }
@@ -506,6 +542,16 @@ struct GameState (
         each player Player in static this.players {
             each card CardInstance in static player.board {
                 if card.traits.dancing < amount, card.traits.dancing = amount
+            }
+        }
+    }
+    
+    func applyBurning(amount int) {
+        if amount <= 0, return
+        
+        each player Player in static this.players {
+            each card CardInstance in static player.board {
+                if !card.traits.on_fire && !card.traits.fire_resistant && card.traits.burning < amount, card.traits.burning = amount
             }
         }
     }

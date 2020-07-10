@@ -25,6 +25,7 @@ struct VictoryMenu (
         
         if this.calculateWhetherOkButtonIsHovered(x, y) {
             gamedata.setScene('mainmenu')
+            soundtrack.fadeOutIntoNextSong()
             return
         }
     }

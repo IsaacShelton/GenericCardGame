@@ -30,6 +30,9 @@ struct Textures (
     shielded,
     spectral,
     attack_line,
+    heal_line,
+    loading_line,
+    unloaded_line,
     fire1,
     fire2,
     fire3,
@@ -59,7 +62,15 @@ struct Textures (
     wizards_aid4,
     wizards_aid5,
     wizards_aid6,
-    wizards_aid7 CaptTexture
+    wizards_aid7,
+    entry,
+    glass,
+    left_filter_none,
+    left_filter_creature,
+    left_filter_spell,
+    left_filter_stat,
+    right_filter,
+    title CaptTexture
 ) {
     func load {
         assets_folder String = where() + "assets/"
@@ -70,8 +81,8 @@ struct Textures (
             "font", "popup_attack1", "popup_attack2", "popup_attack3",
             "popup_shield1", "popup_shield2", "popup_shield3", "resistance",
             "wizards_aid1", "wizards_aid2", "wizards_aid3", "wizards_aid4",
-            "wizards_aid5", "wizards_aid6", "wizards_aid7"
-        }, 15)
+            "wizards_aid5", "wizards_aid6", "wizards_aid7", "title"
+        }, 24)
         
         each *ubyte in [info.member_names, info.length] {
             member_name String = stringConstant(it)

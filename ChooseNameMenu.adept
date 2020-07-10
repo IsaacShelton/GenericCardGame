@@ -29,6 +29,7 @@ struct ChooseNameMenu (
         this.calculateWhetherOkButtonIsHovered(x, y)
         if this.is_ok_button_hovered {
             this.finalize()
+            sfx.play(sfx.button)
             return
         }
     }
@@ -41,7 +42,7 @@ struct ChooseNameMenu (
     
     func key(key, scancode, action, mods int) {
         if      key == GLFW_KEY_BACKSPACE && action == GLFW_PRESS || action == GLFW_REPEAT, this.name.reduce(1)
-        else if key == GLFW_KEY_ENTER && action == GLFW_PRESS, this.finalize()
+        else if key == GLFW_KEY_ENTER && action == GLFW_PRESS, sfx.play(sfx.button); this.finalize()
     }
     
     func draw {

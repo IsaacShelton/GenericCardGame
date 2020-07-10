@@ -1,21 +1,27 @@
 
-// NOTE: We rely on Adept 2.3 instead of 2.2
-// because of features like __pass__ auto-generation
-// and old bugs with the Adept 2.2 Compiler
 pragma compiler_version '2.3'
-pragma null_checks
 
-#default fullscreen      true
-#default monitor_fps     false
-#default ignore_NAME_txt false
+#default release                  false
 
-#set fullscreen false
-#set ignore_NAME_txt true
+#default fullscreen               true
+#default monitor_fps              false
+#default ignore_NAME_txt          false
+#default no_music                 false
+#default enable_music_hotkeys     true
+#default enable_debugging_hotkeys false
+
+#unless release
+    #set fullscreen false
+    #set ignore_NAME_txt true
+    #set no_music false
+    #set enable_debugging_hotkeys true
+#end
 
 import '2.3/basics.adept'
 import '2.3/captain.adept'
 import '2.3/List.adept'
 import '2.3/Matrix4f.adept'
+import '2.3/audio.adept'
 
 import 'NetworkManager.adept'
 import 'NetworkInterpreter.adept'
@@ -28,12 +34,16 @@ import 'where.adept'
 import 'strings.adept'
 import 'csignal.adept'
 import 'lines.adept'
+import 'SoundTrack.adept'
+import 'SoundEffects.adept'
+import 'Loader.adept'
 
 func main(argc int, argv **ubyte) {
     repeat static argc - 1 {
         arg String = stringConstant(argv[idx + 1])
         if      arg.startsWith("--host="), gamedata.override_host = arg.decapitated(7)
         else if arg.startsWith("--port="), gamedata.override_port = arg.decapitated(7)
+        else    print("bad argument: %" % arg)
     }
     
     unless gamedata.override_host.empty(), print("OVERRIDE: override_host=%" % gamedata.override_host)
@@ -46,6 +56,7 @@ func main(argc int, argv **ubyte) {
     captOnRelease(func &onRelease, true)
     captOnKey(func &onKey)
     captOnChar(func &onChar)
+    captOnScroll(func &onScroll)
     captOnDraw(func &onDraw)
     captMultisample(4)
     
@@ -58,38 +69,71 @@ func main(argc int, argv **ubyte) {
 
 func onSetup {
     signal(SIGPIPE, SIG_IGN)
+    audioInit()
     textures.load()
-    gamedata.init()
+    loader.create()
 }
 
 func onExit {
+    loader.stop()
+    loader.destroy()
+    
     textures.unload()
     dynamic_textures.unload()
     gamedata.exit()
+    sfx.unload()
+    soundtrack.stop()
+    soundtrack.destroy()
+    audioTerminate()
 }
 
 func onStep {
-    gamedata.step()
+    if loader.didFinishLoading() {
+        soundtrack.start()
+        gamedata.loadDeck()
+    }
+    
+    if loader.isComplete() {
+        gamedata.step()
+        soundtrack.update()
+        sfx.update()
+    }
 }
 
 func onClick(x, y float, button int) {
-    gamedata.click(x, y, button)
+    if loader.isComplete(), gamedata.click(x, y, button)
 }
 
 func onRelease(x, y float, button int) {
-    gamedata.release(x, y, button)
+    if loader.isComplete(), gamedata.release(x, y, button)
 }
 
 func onKey(key, scancode, action, mods int) {
+    unless loader.isComplete(), return
+    
     gamedata.key(key, scancode, action, mods)
+    
+    #if enable_music_hotkeys
+    if key == GLFW_KEY_SPACE && action == GLFW_PRESS && mods & GLFW_MOD_CONTROL, soundtrack.fadeOutIntoNextSong()
+    if key == GLFW_KEY_M && action == GLFW_PRESS && mods & GLFW_MOD_CONTROL, soundtrack.toggle()
+    if key == GLFW_KEY_N && action == GLFW_PRESS && mods & GLFW_MOD_CONTROL, sfx.toggle()
+    #end
 }
 
 func onChar(c uint) {
-    gamedata.char(c)
+    if loader.isComplete(), gamedata.char(c)
+}
+
+func onScroll(x float, y float) {
+    if loader.isComplete(), gamedata.scroll(x, y)
 }
 
 func onDraw {
     captClearColor(captColor(0.75f, 0.75f, 0.75f))
     captDrawTexture(textures.background, 0.0f, 0.0f, captViewWidth(), captViewHeight())
-    gamedata.draw()
+    
+    if loader.isComplete(), gamedata.draw()
+    else {
+        loader.drawLoadingAnimation()
+    }
 }

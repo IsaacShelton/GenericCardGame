@@ -1,0 +1,173 @@
+
+import 'main.adept'
+
+struct Loader (
+    thread pthread_t,
+    completed_mutex pthread_mutex_t,
+    complete bool,
+    percentage float, // 0.0f...1.0f
+    waiting bool,
+    should_stop bool,
+    current_loading_end_x float,
+    target_loading_end_x float,
+    message String
+) {
+    func create {
+        srand(time(null))
+        
+        rand() // For some reason, the PRNG doesn't seem to be very random
+               // unless we call rand() once before we use it. No idea why!
+               // This shouldn't be required, but whatever
+        
+        this.complete = false
+        this.percentage = 0.0f
+        this.waiting = true
+        this.current_loading_end_x = 0.0f
+        this.target_loading_end_x = 0.0f
+        
+        this.message = this.randomMessage()
+        
+        pthread_mutex_init(&this.completed_mutex, null)
+        
+        if pthread_create(&this.thread, null, func &loadThread(*Loader) as ptr as func(ptr) ptr, this as ptr) {
+            printf('Failed to start loader thread\n')
+            return
+        }
+    }
+    
+    func destroy {
+        pthread_mutex_destroy(&this.completed_mutex)
+    }
+    
+    func loadThread {
+        // Thread for loading assets
+        gamedata.init()
+        if this.getShouldStop(), return
+        
+        this.setPercentage(1.0f / 4.0f)
+        sfx.load()
+        if this.getShouldStop(), return
+        
+        this.setPercentage(2.0f / 4.0f)
+        soundtrack.init(func &loadedOneSongCallback(*Loader) as ptr as func(ptr) void, this as ptr)
+        if this.getShouldStop(), return
+        
+        this.setPercentage(4.0f / 4.0f)
+        this.setComplete(true)
+    }
+    
+    func loadedOneSongCallback {
+        this.setPercentage(this.getPercentage() + 1.0f / 2.0f / SOUND_TRACK_COUNT as float)
+    }
+    
+    func isComplete bool {
+        pthread_mutex_lock(&this.completed_mutex)
+        defer pthread_mutex_unlock(&this.completed_mutex)
+        return this.complete && fabs(this.target_loading_end_x - this.current_loading_end_x) <= 0.001f
+    }
+    
+    func setComplete(value bool) {
+        pthread_mutex_lock(&this.completed_mutex)
+        this.complete = value
+        pthread_mutex_unlock(&this.completed_mutex)
+    }
+    
+    func getPercentage float {
+        // NOTE: Returns 0.0f...1.0f
+        pthread_mutex_lock(&this.completed_mutex)
+        defer pthread_mutex_unlock(&this.completed_mutex)
+        return this.percentage
+    }
+    
+    func setPercentage(value float) {
+        pthread_mutex_lock(&this.completed_mutex)
+        this.percentage = value
+        pthread_mutex_unlock(&this.completed_mutex)
+    }
+    
+    func getShouldStop bool {
+        // NOTE: Returns 0.0f...1.0f
+        pthread_mutex_lock(&this.completed_mutex)
+        defer pthread_mutex_unlock(&this.completed_mutex)
+        return this.should_stop
+    }
+    
+    func setShouldStop(value bool) {
+        pthread_mutex_lock(&this.completed_mutex)
+        this.should_stop = value
+        pthread_mutex_unlock(&this.completed_mutex)
+    }
+    
+    func didFinishLoading bool {
+        if !this.waiting || !this.isComplete() || fabs(this.target_loading_end_x - this.current_loading_end_x) > 0.001f, return false
+        
+        this.waiting = false
+        return true
+    }
+    
+    func stop {
+        // NOTE: Because we don't have a way of determining which things were loaded
+        // and need to be destroyed, we won't setShouldStop(true)
+        
+        if this.waiting && !this.isComplete() && pthread_join(this.thread, null) {
+            printf('Failed to join loader thread\n')
+            return
+        }
+    }
+    
+    func drawLoadingAnimation {
+        drawTextCentered(this.message, captViewWidth() / 2.0f, captViewHeight() / 2.0f)
+        
+        beginning float = captViewWidth() / 4.0f
+        length float = captViewWidth() / 2.0f
+        y float = captViewHeight() / 2.0f + 96.0f
+        
+        start_x float = beginning
+        end_x float = beginning + length * loader.getPercentage()
+        
+        this.target_loading_end_x = end_x
+        if this.current_loading_end_x == 0.0f, this.current_loading_end_x = this.target_loading_end_x
+        
+        if this.current_loading_end_x < this.target_loading_end_x {
+            this.current_loading_end_x += (this.target_loading_end_x - this.current_loading_end_x) / 6.0f
+            
+            if this.current_loading_end_x >= this.target_loading_end_x,
+                this.current_loading_end_x = this.target_loading_end_x
+        }
+        
+        drawLine(beginning, y, beginning + length, y, 8.0f, EndCapStyle::ROUND, &textures.unloaded_line)
+        drawLine(start_x, y, this.current_loading_end_x, y, 8.0f, EndCapStyle::ROUND, &textures.loading_line)
+    }
+    
+    func randomMessage String {
+        switch rand() % 24 {
+        case  0, return "Reading the rule book"
+        case  1, return "Igniting fires"
+        case  2, return "Shuffling cards"
+        case  3, return "Swirling potions"
+        case  4, return "Hanging the disco ball"
+        case  5, return "Handing out shields"
+        case  6, return "Training wizards"
+        case  7, return "Doubling throckmortins"
+        case  8, return "Maintaining bee colonies"
+        case  9, return "Reversing the punch"
+        case 10, return "Obtaining sticks"
+        case 11, return "Reviving the dead"
+        case 12, return "NORMAL LOADING"
+        case 13, return "Taming ducks"
+        case 14, return "Figuring out the meaning to life"
+        case 15, return "Baking a pie"
+        case 16, return "Generating jokes"
+        case 17, return "Stealing hearts"
+        case 18, return "Watching advertisements"
+        case 19, return "Sharpening swords"
+        case 20, return "Printing Italians"
+        case 21, return "Paying taxes"
+        case 22, return "Feeling sad"
+        case 23, return "Raising cholesterol levels"
+        }
+        return "Loading"
+    }
+}
+
+loader Loader

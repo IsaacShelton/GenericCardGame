@@ -41,7 +41,26 @@ struct CardBlueprint (
         print(" attributes:")
         each CardEffect in this.attributes, print("  % = %" % it.identifier % it.value)
         print(" textures: %" % (this.ct.portrait != &textures.placeholder))
-        print(" traits: %" % this.traits.toString())
+        print(" traits: %" % this.traits.toString(false))
+    }
+    
+    func toString String {
+        result String
+        //result.append("%" % this.name + "\n")
+        //result.append(" title %" % this.title.replace('\n'ub, " ") + "\n")
+        //result.append(" description %" % this.description.replace('\n'ub, " ") + "\n")
+        result.append("kind %" % toString(this.kind) + "\n")
+        result.append("cost %" % this.cost + "\n")
+        
+        if this.kind == CardKind::CREATURE {
+            result.append("hp %" % this.hp + "\n")
+            result.append("attack %" % this.attack + "\n")
+            result.append("offense %" % this.offense.toString() + "\n")
+            result.append("defense %" % this.defense.toString() + "\n")
+        }
+        
+        result.append("%" % this.traits.toString(true))
+        return result.commit()
     }
 }
 

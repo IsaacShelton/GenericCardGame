@@ -220,6 +220,10 @@ struct NetworkInterpreter (
         this.room_movements.clear()
     }
     
+    func clearActions(){
+        each ActionAgent in this.agents, it.clearActions()
+    }
+    
     func ignoreNextJoinMessageFrom(name String){
         pthread_mutex_lock(&this.access_mutex)
         this.ignore_next_join_message_from = name

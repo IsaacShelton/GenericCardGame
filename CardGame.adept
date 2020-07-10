@@ -169,10 +169,11 @@ struct CardGame (
             
             aggressor *CardInstance = this.state.getCardOnBoardByNetworkId(order.aggressor)
             victim *CardInstance = this.state.getCardOnBoardByNetworkId(order.victim)
+            is_friendly bool = this.state.findOwner(order.aggressor) == this.state.findOwner(order.victim)
             
             if aggressor && victim {
                 did_attack_work successful = this.state.doAttack(aggressor, &victim, &this.particles, order.randomness)
-                this.playAttackAnimation(aggressor, victim, did_attack_work)
+                this.playAttackAnimation(aggressor, victim, did_attack_work, is_friendly)
                 
                 this.animated_attack_line_x = 0.0f // 0.0f == starting card x
                 this.animated_attack_line_y = 0.0f // 0.0f == starting card y
@@ -211,6 +212,7 @@ struct CardGame (
         // End our turn if the 'end turn' button was clicked
         if this.show_end_turn_button && this.calculateWhetherEndTurnButtonIsHovered(x, y) {
             this.endTurn()
+            sfx.play(sfx.button)
             return
         }
         
@@ -222,6 +224,7 @@ struct CardGame (
                 me.drawCardsFromDeck(1, true)
                 me.mana -= me.getDrawCost()
                 gamedata.manager.writeOutgoing(gamedata.player_name + "@draw\n")
+                sfx.play(sfx.button)
             }
             return
         }
@@ -331,6 +334,10 @@ struct CardGame (
         if this.state.phase.kind == PhaseKind::ATTACK && this.with_aggressor != 0 && me && !me.sent_done {
             // Handle attack order
             victim_card *CardInstance = this.getOpponentCardUnderneath(x, y)
+            
+            aggressor_card *CardInstance = this.state.getCardOnBoardByNetworkId(this.with_aggressor)
+            if victim_card == null && aggressor_card.traits.can_heal, victim_card = this.getMyCardUnderneath(x, y)
+            
             if victim_card {
                 this.attack_orders.add(attackOrder(this.with_aggressor, victim_card.network_id))
                 this.attack_orders.enforceMaxAttacks(this.with_aggressor, 1)
@@ -405,21 +412,42 @@ struct CardGame (
         if this.state.phase.kind == PhaseKind::ATTACK {
             captDrawOpacity(0.5f)
             if this.with_aggressor != 0 && this.getMyCardPositionFromNetworkID(this.with_aggressor, undef start CardPosition) {
+                friendly bool = false
                 end_x float = mouseX
                 end_y float = mouseY
                 
                 victim *CardInstance = this.getOpponentCardUnderneath(mouseX, mouseY)
-                if victim && this.getOpponentCardPositionFromNetworkID(victim.network_id, undef victim_position CardPosition) {
-                    end_x = victim_position.x
-                    end_y = victim_position.y
+                
+                if victim == null {
+                    using_card *CardInstance = this.state.getCardOnBoardByNetworkId(this.with_aggressor)
+                    if using_card.traits.can_heal, victim = this.getMyCardUnderneath(mouseX, mouseY)
+                    
+                    if victim && this.getMyCardPositionFromNetworkID(victim.network_id, undef victim_position CardPosition) {
+                        end_x = victim_position.x
+                        end_y = victim_position.y
+                        friendly = true
+                    }
                 }
                 
-                drawLine(start.x, start.y, end_x, end_y, 8.0f, EndCapStyle::ROUND, &textures.attack_line)
+                if victim {
+                    victim_position CardPosition = undef
+                    if this.getOpponentCardPositionFromNetworkID(victim.network_id, &victim_position) ||
+                       this.getMyCardPositionFromNetworkID(victim.network_id, &victim_position) {
+                        end_x = victim_position.x
+                        end_y = victim_position.y
+                    }
+                }
+                
+                drawLine(start.x, start.y, end_x, end_y, 8.0f, EndCapStyle::ROUND, friendly ? &textures.heal_line : &textures.attack_line)
             }
             
             each AttackOrder in this.attack_orders {
-                if this.getMyCardPositionFromNetworkID(it.aggressor, undef start CardPosition) && this.getOpponentCardPositionFromNetworkID(it.victim, undef end CardPosition) {
-                    drawLine(start.x, start.y, end.x, end.y, 4.0f, EndCapStyle::ROUND, &textures.attack_line)
+                end CardPosition = undef
+                if this.getMyCardPositionFromNetworkID(it.aggressor, undef start CardPosition) {
+                    if this.getOpponentCardPositionFromNetworkID(it.victim, &end),
+                        drawLine(start.x, start.y, end.x, end.y, 4.0f, EndCapStyle::ROUND, &textures.attack_line)
+                    else if this.getMyCardPositionFromNetworkID(it.victim, &end),
+                        drawLine(start.x, start.y, end.x, end.y, 4.0f, EndCapStyle::ROUND, &textures.heal_line)
                 }
             }
             captDrawOpacity(1.0f)
@@ -434,6 +462,9 @@ struct CardGame (
             has_end bool = this.getMyCardPositionFromNetworkID(this.playing_attack_order.getPointer().victim, &end) ||
                     this.getOpponentCardPositionFromNetworkID(this.playing_attack_order.getPointer().victim, &end)
             
+            friendly bool = this.state.findOwner(this.playing_attack_order.getPointer().victim) ==
+                                this.state.findOwner(this.playing_attack_order.getPointer().aggressor)
+            
             if has_start && this.animated_attack_line_x == 0.0f && this.animated_attack_line_y == 0.0f {
                 this.animated_attack_line_x = start.x
                 this.animated_attack_line_y = start.y
@@ -446,7 +477,7 @@ struct CardGame (
             
             if has_start && has_end {
                 captDrawOpacity(0.5f)
-                drawLine(start.x, start.y, this.animated_attack_line_x, this.animated_attack_line_y, 4.0f, EndCapStyle::ROUND, &textures.attack_line)
+                drawLine(start.x, start.y, this.animated_attack_line_x, this.animated_attack_line_y, 4.0f, EndCapStyle::ROUND, friendly ? &textures.heal_line : &textures.attack_line)
                 captDrawOpacity(1.0f)
             }
         }
@@ -497,12 +528,12 @@ struct CardGame (
             if this.dragging_card == instance.instance_id {
                 // If the card is being dragged, draw it where it's being dragged
                 captMouseViewPosition(undef mouseX float, undef mouseY float)
-                this.drawCard(instance, mouseX, mouseY, 1.0f /*this.dragging_card_scale*/)
+                drawCard(instance, mouseX, mouseY, 1.0f /*this.dragging_card_scale*/)
                 continue
             }
             
             position *CardPosition = card_positions.getPointer(card_idx)
-            this.drawCard(instance, position.x, position.y, position.scale)
+            drawCard(instance, position.x, position.y, position.scale)
         }
     }
     
@@ -531,13 +562,13 @@ struct CardGame (
         // Draw stat card
         if me.stat_card.has {
             this.getMyStatCardPosition(card_positions, undef stat_x float, undef stat_y float)
-            this.drawCard(me.stat_card.getPointer(), stat_x, stat_y, 1.0f)
+            drawCard(me.stat_card.getPointer(), stat_x, stat_y, 1.0f)
         }
         
         // Draw main board cards
         each CardPosition in card_positions {
             if glfwGetMouseButton(_captain_window, GLFW_MOUSE_BUTTON_2) == GLFW_PRESS && it.intersecting(mouseX, mouseY) {
-                this.drawCard(me.board.getPointer(idx), it.x, it.y, it.scale)
+                drawCard(me.board.getPointer(idx), it.x, it.y, it.scale)
             } else {
                 this.drawCharacter(me.board.getPointer(idx), it)
             }
@@ -554,13 +585,13 @@ struct CardGame (
         // Draw stat card
         if opponent.stat_card.has {
             this.getOpponentsStatCardPosition(card_positions, undef stat_x float, undef stat_y float)
-            this.drawCard(opponent.stat_card.getPointer(), stat_x, stat_y, 1.0f)
+            drawCard(opponent.stat_card.getPointer(), stat_x, stat_y, 1.0f)
         }
         
         // Draw main board cards
         each CardPosition in card_positions {
             if glfwGetMouseButton(_captain_window, GLFW_MOUSE_BUTTON_2) == GLFW_PRESS && it.intersecting(mouseX, mouseY) {
-                this.drawCard(opponent.board.getPointer(idx), it.x, it.y, it.scale)
+                drawCard(opponent.board.getPointer(idx), it.x, it.y, it.scale)
             } else {
                 this.drawCharacter(opponent.board.getPointer(idx), it)
             }
@@ -620,54 +651,6 @@ struct CardGame (
         repeat board_count {
             card_positions.add(cardPosition(x, y, y, 1.0f))
             x += CARD_WIDTH + CARD_PADDING
-        }
-    }
-    
-    func drawCard(instance *CardInstance, x_focus, y_focus, scale float){
-        // NOTE: We can afford to call this ~50 times per frame
-        
-        top float = y_focus - scale * CARD_HEIGHT / 2.0f
-        left float = x_focus - scale * CARD_WIDTH / 2.0f
-        width float = scale * CARD_WIDTH
-        height float = scale * CARD_HEIGHT
-        
-        captDrawTexture(instance.getStandardCardTexture(), left, top, width, height)
-        
-        // Draw Cost
-        drawText(toString(instance.cost), left + width * 0.025, top + width * 0.028, textures.font_black, scale * 12.0f)
-        
-        // Draw Title
-        title_offset float = instance.title.first('\n'ub) != -1sl ? width * 0.05 : width * 0.09
-        drawText(instance.title, left + width * 0.25, top + title_offset, textures.font_black, scale * 4.0f)
-        
-        // Draw Picture
-        captDrawTexture(*instance.ct.portrait, left, top + scale * CARD_PICTURE_Y_OFFSET, width, scale * CARD_PICTURE_HEIGHT)
-        captDrawTexture(textures.picture_frame, left, top + scale * CARD_PICTURE_Y_OFFSET, width, scale * CARD_PICTURE_HEIGHT)
-        
-        // Draw Description
-        description_offset float = width * 0.79
-        drawText(instance.description, left + width * 0.05, top + description_offset, textures.font_black, scale * 4.0f)
-        
-        // Draw Offense
-        offense_texture *CaptTexture = instance.offense.getTexture()
-        if offense_texture {
-            captDrawTexture(*offense_texture, left + width * 0.04, top + height * 0.85, scale * CARD_ELEMENT_WIDTH, scale * CARD_ELEMENT_HEIGHT)
-            
-            // Draw Attack #
-            attack_string String = toString(instance.attack)
-            attack_number_alignment float = attack_string.length < 2 ? 2.5f : 0.0f
-            drawText(attack_string, left + width * 0.27 + scale * attack_number_alignment, top + height * 0.87, textures.font_black, scale * 8.0f)
-        }
-        
-        // Draw Defense
-        defense_texture *CaptTexture = instance.defense.getTexture()
-        if defense_texture {
-            captDrawTexture(*defense_texture, left + width - scale * CARD_ELEMENT_WIDTH - width * 0.04, top + height * 0.85, scale * CARD_ELEMENT_WIDTH, scale * CARD_ELEMENT_HEIGHT)
-            
-            // Draw Defense #
-            hp_string String = instance.hp <= 0 ? "0" : toString(instance.hp)
-            hp_number_alignment float = hp_string.length < 2 ? 3.5f : 0.0f
-            drawText(hp_string, left + width * 0.535 + scale * hp_number_alignment, top + height * 0.87, textures.font_black, scale * 8.0f)
         }
     }
     
@@ -846,6 +829,19 @@ struct CardGame (
         }
     }
     
+    func getMyCardUnderneath(mouseX, mouseY float) *CardInstance {
+        me *Player = this.state.getThisPlayer()
+        unless me, return null
+        
+        this.getMyBoardCardPositions(def card_positions <CardPosition> List)
+        
+        each CardPosition in card_positions {
+            if it.intersecting(mouseX, mouseY), return me.board.getPointer(idx)
+        }
+        
+        return null
+    }
+    
     func getOpponentCardUnderneath(mouseX, mouseY float) *CardInstance {
         opponent *Player = this.state.getOpponent()
         unless opponent, return null
@@ -948,9 +944,14 @@ struct CardGame (
         }
     }
     
-    func playAttackAnimation(aggressor *CardInstance, victim *CardInstance, did_attack_work successful) {
+    func playAttackAnimation(aggressor *CardInstance, victim *CardInstance, did_attack_work successful, is_friendly bool) {
         this.scheduleAnimation(aggressor.newAttackAnimation(), 0.5)
-        this.scheduleAnimation(did_attack_work ? (victim.isDead() ? victim.newDieAnimation() : victim.newHurtAnimation()) : victim.newMockAnimation(), 1.5)
+        this.scheduleAnimation(is_friendly ?
+                victim.newCheerAnimation()
+            : (
+                did_attack_work ? (victim.isDead() ? victim.newDieAnimation() : victim.newHurtAnimation()) : victim.newMockAnimation()
+            )
+        , 1.5)
     }
     
     func clearParticles {
@@ -964,5 +965,53 @@ struct CardGame (
     func playWizardsAidAnimation {
         this.playing_wizards_aid_animation = true
         this.wizards_aid_animation_beginning = 0.0
+    }
+}
+
+func drawCard(instance *CardInstance, x_focus, y_focus, scale float){
+    // NOTE: We can afford to call this ~50 times per frame
+    
+    top float = y_focus - scale * CARD_HEIGHT / 2.0f
+    left float = x_focus - scale * CARD_WIDTH / 2.0f
+    width float = scale * CARD_WIDTH
+    height float = scale * CARD_HEIGHT
+    
+    captDrawTexture(instance.getStandardCardTexture(), left, top, width, height)
+    
+    // Draw Cost
+    drawText(toString(instance.cost), left + width * 0.025, top + width * 0.028, textures.font_black, scale * 12.0f)
+    
+    // Draw Title
+    title_offset float = instance.title.first('\n'ub) != -1sl ? width * 0.05 : width * 0.09
+    drawText(instance.title, left + width * 0.25, top + title_offset, textures.font_black, scale * 4.0f)
+    
+    // Draw Picture
+    captDrawTexture(*instance.ct.portrait, left, top + scale * CARD_PICTURE_Y_OFFSET, width, scale * CARD_PICTURE_HEIGHT)
+    captDrawTexture(textures.picture_frame, left, top + scale * CARD_PICTURE_Y_OFFSET, width, scale * CARD_PICTURE_HEIGHT)
+    
+    // Draw Description
+    description_offset float = width * 0.79
+    drawText(instance.description, left + width * 0.05, top + description_offset, textures.font_black, scale * 4.0f)
+    
+    // Draw Offense
+    offense_texture *CaptTexture = instance.offense.getTexture()
+    if offense_texture {
+        captDrawTexture(*offense_texture, left + width * 0.04, top + height * 0.85, scale * CARD_ELEMENT_WIDTH, scale * CARD_ELEMENT_HEIGHT)
+        
+        // Draw Attack #
+        attack_string String = toString(instance.attack)
+        attack_number_alignment float = attack_string.length < 2 ? 2.5f : 0.0f
+        drawText(attack_string, left + width * 0.27 + scale * attack_number_alignment, top + height * 0.87, textures.font_black, scale * 8.0f)
+    }
+    
+    // Draw Defense
+    defense_texture *CaptTexture = instance.defense.getTexture()
+    if defense_texture {
+        captDrawTexture(*defense_texture, left + width - scale * CARD_ELEMENT_WIDTH - width * 0.04, top + height * 0.85, scale * CARD_ELEMENT_WIDTH, scale * CARD_ELEMENT_HEIGHT)
+        
+        // Draw Defense #
+        hp_string String = instance.hp <= 0 ? "0" : toString(instance.hp)
+        hp_number_alignment float = hp_string.length < 2 ? 3.5f : 0.0f
+        drawText(hp_string, left + width * 0.535 + scale * hp_number_alignment, top + height * 0.87, textures.font_black, scale * 8.0f)
     }
 }

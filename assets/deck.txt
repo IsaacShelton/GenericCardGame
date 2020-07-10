@@ -1,3 +1,106 @@
+safety_gloves
+ stat
+ title Safety Gloves
+ description Prevents your creatures from taking damage from negative status effects
+ cost 4
+ ignore-effect-damage
+rotten_beef
+ creature
+ title Rotten Beef
+ description It's been sitting around for awhile
+ cost 1
+ attack 2
+ hp 5
+ offense blunt
+ defense flesh
+robot
+ creature
+ title Robot
+ description Has attack damage equal to its HP
+ cost 3
+ hp 8
+ attack 8
+ offense sharp
+ defense shielded
+ attack-equals-hp
+paper_airplane
+ creature
+ title Paper Airplane
+ description Looses 2 HP every time this card attacks
+ cost 1
+ attack 2
+ hp 16
+ offense sharp
+ defense flesh
+ flimsy 2
+isaacs_mixtape
+ creature
+ title Isaac's Mixtape
+ description Straight fire
+ cost 2
+ attack 4
+ hp 6
+ offense sharp
+ defense spectral
+ on-fire
+ spreads-fire 100
+ fire-resistant
+ultimate_inferno
+ spell
+ title Ultimate Inferno
+ description Sets all creatures on fire for 5 turns.
+ cost 4
+ usage prebattle
+ everybody-burn-now 5
+skeleton
+ creature
+ title Skeleton
+ description Draw a card after this card dies
+ cost 1
+ hp 2
+ attack 4
+ offense blunt
+ defense shielded
+ recycle 1
+duck
+ creature
+ title Duck
+ description Useless, but adorable!
+ cost 0
+ hp 1
+ attack 1
+ offense sharp
+ defense flesh
+glowy_ball
+ creature
+ title Glowy Ball
+ description Can heal teammates for the same amount as this card's attack
+ cost 2
+ hp 6
+ attack 4
+ offense magic
+ defense spectral
+ can-heal
+poorly_drawn_guy
+ creature
+ title Poorly Drawn Guy
+ cost 1
+ hp 6
+ attack 0
+ description Gains +1 attack every turn
+ offense blunt
+ defense flesh
+ gains-attack 1
+glitch_a
+ creature
+ title Glitch A
+ description Shield x1
+ cost 2
+ hp 5
+ attack 5
+ offense magic
+ defense shielded
+ shield 1
 wizards_aid
  spell
  title Wizard's Aid

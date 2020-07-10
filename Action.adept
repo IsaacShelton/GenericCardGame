@@ -98,6 +98,7 @@ struct Action (command_text String) {
             }
             
             subject.spawnCard(card_blueprint_identifier, network_object_id.toUlong(), position_relation, position_reference.toUlong(), particles, is_me, state.global_dancing)
+            sfx.play(sfx.spawn)
             
             if subject && !is_me {
                 // Reduce the number of dummy cards in the opponents hand

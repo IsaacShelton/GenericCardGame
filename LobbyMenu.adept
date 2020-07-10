@@ -26,6 +26,7 @@ struct LobbyMenu (
             this.members.clear()
             
             gamedata.setScene('cardgame')
+            soundtrack.fadeOutIntoNextSong()
             return
         }
         
@@ -47,11 +48,13 @@ struct LobbyMenu (
         if this.calculateWhetherLeaveButtonIsHovered(x, y) {
             gamedata.leaveRoom()
             gamedata.setScene('onlinemenu')
+            sfx.play(sfx.back)
             return
         }
         
         if this.calculateWhetherStartButtonIsHovered(x, y) && this.members.length == 2 {
             if gamedata.manager.getIsOnline(), gamedata.manager.writeOutgoing("$close\n")
+            sfx.play(sfx.button)
             return
         }
     }

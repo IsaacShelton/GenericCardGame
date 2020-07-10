@@ -12,6 +12,7 @@ func scene() Scene {
     null_scene.release = null
     null_scene.char = null
     null_scene.key = null
+    null_scene.scroll = null
     null_scene.instance = null
     null_scene.instance_size = 0
     return null_scene
@@ -33,6 +34,7 @@ func addScene(this *<Scene> List, id int, name *ubyte, handler *$SceneHandler){
     scene.release = func null &release(*$SceneHandler, float, float, int) as ptr as func(ptr, float, float, int) void
     scene.char = func null &char(*$SceneHandler, uint) as ptr as func(ptr, uint) void
     scene.key = func null &key(*$SceneHandler, int, int, int, int) as ptr as func(ptr, int, int, int, int) void
+    scene.scroll = func null &scroll(*$SceneHandler, float, float) as ptr as func(ptr, float, float) void
     scene.instance = handler
     scene.instance_size = sizeof $SceneHandler
     
@@ -55,6 +57,7 @@ struct Scene (
     release func(ptr, float, float, int) void,
     char func(ptr, uint) void,
     key func(ptr, int, int, int, int) void,
+    scroll func(ptr, float, float) void,
     instance ptr,
     instance_size usize
 ) {
@@ -103,6 +106,10 @@ struct Scene (
         this.callPseudoMethod(this.char, c)
     }
     
+    func callScroll(x, y float) {
+        this.callPseudoMethod(this.scroll, x, y)
+    }
+    
     func callPseudoMethod(method func(ptr) void) {
         unless method as ptr, return
         method(this.instance)
@@ -111,6 +118,11 @@ struct Scene (
     func callPseudoMethod(method func(ptr, uint) void, a uint) {
         unless method as ptr, return
         method(this.instance, a)
+    }
+    
+    func callPseudoMethod(method func(ptr, float, float) void, a, b float) {
+        unless method as ptr, return
+        method(this.instance, a, b)
     }
     
     func callPseudoMethod(method func(ptr, float, float, int) void, a, b float, c int) {

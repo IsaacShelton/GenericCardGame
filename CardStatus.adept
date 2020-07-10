@@ -7,7 +7,7 @@ func cardStatus(instance *CardInstance) CardStatus {
     status CardStatus
     status.network_id = instance.network_id
     status.is_dead = instance.isDead()
-    status.is_on_fire = instance.traits.on_fire
+    status.is_on_fire = instance.traits.on_fire || instance.traits.burning
     status.is_sad = instance.isSad()
     status.is_dancing = instance.isDancing()
     status.is_raging = instance.traits.rage

@@ -1,0 +1,7 @@
+
+pragma compiler_supports '2.3'
+pragma project_name 'main'
+
+#set release true
+
+import 'main.adept'

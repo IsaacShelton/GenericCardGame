@@ -1,0 +1,14 @@
+
+import 'main.adept'
+
+func load(this *Sound, filename String, looping bool, volume float) {
+    filename_cstr *ubyte = filename.cstr()
+    this.load(filename_cstr, looping, volume)
+    delete filename_cstr
+}
+
+func load(this *PlayableSound, filename String, looping bool, volume float) {
+    filename_cstr *ubyte = filename.cstr()
+    this.load(filename_cstr, looping, volume)
+    delete filename_cstr
+}

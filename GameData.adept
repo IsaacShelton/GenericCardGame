@@ -9,6 +9,8 @@ import 'VictoryMenu.adept'
 import 'DefeatMenu.adept'
 import 'FPSMonitor.adept'
 import 'GameMode.adept'
+import 'OptionsMenu.adept'
+import 'ExtrasMenu.adept'
 
 struct GameData (
     scene *Scene,
@@ -31,22 +33,19 @@ struct GameData (
 ) {
     func init {
         this.scene = null
-        this.scenes.addScene(1, 'mainmenu', new MainMenu)
-        this.scenes.addScene(2, 'onlinemenu', new OnlineMenu)
-        this.scenes.addScene(3, 'createmenu', new CreateMenu)
-        this.scenes.addScene(4, 'choosename', new ChooseNameMenu)
-        this.scenes.addScene(5, 'lobby', new LobbyMenu)
-        this.scenes.addScene(6, 'cardgame', new CardGame)
-        this.scenes.addScene(7, 'victory', new VictoryMenu)
-        this.scenes.addScene(8, 'defeat', new DefeatMenu)
+        this.scenes.addScene( 1, 'mainmenu', new MainMenu)
+        this.scenes.addScene( 2, 'onlinemenu', new OnlineMenu)
+        this.scenes.addScene( 3, 'createmenu', new CreateMenu)
+        this.scenes.addScene( 4, 'choosename', new ChooseNameMenu)
+        this.scenes.addScene( 5, 'lobby', new LobbyMenu)
+        this.scenes.addScene( 6, 'cardgame', new CardGame)
+        this.scenes.addScene( 7, 'victory', new VictoryMenu)
+        this.scenes.addScene( 8, 'defeat', new DefeatMenu)
+        this.scenes.addScene( 9, 'optionsmenu', new OptionsMenu)
+        this.scenes.addScene(10, 'extrasmenu', new ExtrasMenu)
         this.assets_folder = where() + "assets/"
         this.loadPlayerName()
         this.gamemode.defaults()
-        
-        unless this.deck.load() {
-            print("Failed to load deck")
-            return
-        }
         
         this.next_instance_id = 1
         this.manager.initialize(1024)
@@ -72,6 +71,14 @@ struct GameData (
         } else {
             this.manager.writeOutgoing("$name " + this.player_name + "\n")
         }
+    }
+    
+    func loadDeck successful {
+        unless this.deck.load() {
+            print("Failed to load deck")
+            return false
+        }
+        return true
     }
     
     func exit {
@@ -131,6 +138,10 @@ struct GameData (
     
     func char(c uint) {
         if this.scene, this.scene.callChar(c)
+    }
+    
+    func scroll(x, y float) {
+        if this.scene, this.scene.callScroll(x, y)
     }
     
     func draw {
