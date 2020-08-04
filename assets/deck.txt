@@ -1,3 +1,129 @@
+reflective_shield
+ trap
+ title Reflective Shield
+ description When activated, attackers take damage equal to the amount dealt
+ cost 4 
+ reflect
+party_popper
+ trap
+ title Party Popper
+ description When rigged creature dies, gain +2 mana points for the next spawn phase
+ cost 2
+ activation death
+ gives-mana 2
+floor_spikes
+ trap
+ title Floor Spikes
+ description When activated, attackers take 5 damage. Expires after 1 battle phase
+ cost 2
+ attack 5
+ expires 1
+glass_guy
+ creature
+ title Glass Guy
+ description counter-attack. When hurt, causes attacking creature to start bleeding
+ cost 0
+ hp 1
+ attack 2
+ offense sharp
+ defense shielded
+ counter-attack
+ passive-cutting
+wizard_overcharge
+ spell
+ title Wizard Overcharge
+ description Cards are 1 mana point cheaper to play for 1 spawn phase
+ cost 2
+ thrift 1
+flying_snake
+ creature
+ title Flying Snake
+ description Attacks cause bleeding
+ cost 2
+ hp 5
+ attack 5
+ offense sharp
+ defense flesh
+ biting
+lemon
+ spell
+ title Lemon
+ description Fills your super meter by 20%
+ cost 2
+ super 20
+gild
+ spell
+ title Gild
+ description Reduces the damage a creature takes by 3
+ cost 3
+ requires-target
+ applies-resistance 3
+transform
+ spell
+ title Transform
+ description Transform any creature into another random creature
+ cost 3
+ requires-target
+ transform
+sleight_of_hand
+ spell
+ title Sleight of Hand
+ description Steal one random card from your opponent
+ cost 2
+ steal-random 1
+ urgent
+fencer
+ creature
+ title Fencer
+ description This creature causes bleeding for creatures without shields
+ cost 3
+ hp 6
+ attack 8
+ offense sharp
+ defense shielded
+ cutting
+red_potion
+ spell
+ title Red Potion
+ description Raises a creatures attack by 5
+ cost 2
+ requires-target
+ applies-attack 5
+toothpick
+ spell
+ title Toothpick
+ description Raises a creature's attack by 2
+ cost 1
+ requires-target
+ applies-attack 2
+tall_guy
+ creature
+ title Tall Guy
+ description counter-attack
+ hp 5
+ attack 14
+ offense blunt
+ defense flesh
+ counter-attack
+rock
+ creature
+ title Rock
+ description Must be attacked first
+ hp 20
+ attack 0
+ offense blunt
+ defense shielded
+ must-be-attacked-first
+guy_with_a_gun
+ creature
+ title Guy with a Gun
+ description Cannot Activate Counterattack
+ cost 4
+ hp 6
+ attack 12
+ offense magic
+ defense flesh
+ ignores-counter-attack
 safety_gloves
  stat
  title Safety Gloves
@@ -18,8 +144,8 @@ robot
  title Robot
  description Has attack damage equal to its HP
  cost 3
- hp 8
- attack 8
+ hp 7
+ attack 7
  offense sharp
  defense shielded
  attack-equals-hp
@@ -29,7 +155,7 @@ paper_airplane
  description Looses 2 HP every time this card attacks
  cost 1
  attack 2
- hp 16
+ hp 10
  offense sharp
  defense flesh
  flimsy 2
@@ -57,7 +183,7 @@ skeleton
  title Skeleton
  description Draw a card after this card dies
  cost 1
- hp 2
+ hp 3
  attack 4
  offense blunt
  defense shielded
@@ -76,8 +202,8 @@ glowy_ball
  title Glowy Ball
  description Can heal teammates for the same amount as this card's attack
  cost 2
- hp 6
- attack 4
+ hp 5
+ attack 5
  offense magic
  defense spectral
  can-heal
@@ -96,7 +222,7 @@ glitch_a
  title Glitch A
  description Shield x1
  cost 2
- hp 5
+ hp 4
  attack 5
  offense magic
  defense shielded
@@ -272,5 +398,4 @@ confused_alien
  offense magic
  defense flesh
  random-victim
-
 

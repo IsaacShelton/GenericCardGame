@@ -1,21 +1,14 @@
 
 import 'main.adept'
 
-struct AttackOrder (aggressor CardNetworkID, victim CardNetworkID, randomness int)
+struct AttackOrder (aggressor CardNetworkID, victim CardNetworkID, randomness int, is_counter bool)
 
-func attackOrder(aggressor, victim CardNetworkID) AttackOrder {
-    order POD AttackOrder
-    order.aggressor = aggressor
-    order.victim = victim
-    order.randomness = -1
-    return order
-}
-
-func attackOrder(aggressor, victim CardNetworkID, randomness int) AttackOrder {
+func attackOrder(aggressor, victim CardNetworkID, randomness int = -1, is_counter bool = false) AttackOrder {
     order POD AttackOrder
     order.aggressor = aggressor
     order.victim = victim
     order.randomness = randomness
+    order.is_counter = is_counter
     return order
 }
 

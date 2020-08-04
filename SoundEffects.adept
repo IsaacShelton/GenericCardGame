@@ -5,14 +5,16 @@ import 'soundutils.adept'
 struct SoundEffects (
     spawn, button, back Sound,
     players <SoundPlayer> List,
-    disable_sfx bool
+    disable_sfx bool,
+    amplifier float
 ) {
     func load {
         sfx_folder String = where() + "assets/sfx/"
-        this.spawn.load(sfx_folder + "spawn.wav", false, 1.0f)
-        this.button.load(sfx_folder + "button.wav", false, 1.0f)
-        this.back.load(sfx_folder + "back.wav", false, 1.0f)
+        this.spawn.load(sfx_folder + "spawn.wav", false, 0.5f)
+        this.button.load(sfx_folder + "button.wav", false, 0.5f)
+        this.back.load(sfx_folder + "back.wav", false, 0.5f)
         this.disable_sfx = false
+        this.amplifier = 1.0f
     }
     
     func unload {
@@ -34,7 +36,7 @@ struct SoundEffects (
     
     func toggle {
         this.disable_sfx = !this.disable_sfx
-        if this .disable_sfx, each SoundPlayer in this.players, it.stop()
+        if this.disable_sfx, each SoundPlayer in this.players, it.stop()
     }
     
     func play(sound Sound) {
@@ -42,6 +44,12 @@ struct SoundEffects (
         player *SoundPlayer = this.players.add()
         player.create()
         player.play(sound)
+        player.setVolume(this.amplifier)
+    }
+    
+    func setVolumeAmplifier(amplifier float) {
+        each SoundPlayer in this.players, it.setVolume(amplifier)
+        this.amplifier = amplifier
     }
 }
 

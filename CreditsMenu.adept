@@ -1,0 +1,67 @@
+
+import 'main.adept'
+
+struct CreditsMenu (
+    is_back_button_hovered bool
+) {
+    func setup {
+        this.is_back_button_hovered = false
+    }
+    
+    func enter {}
+    func exit {}
+    
+    func __defer__ {
+        // NOTE: Due to a compiler issue, we have to force a __defer__ method to
+        // be automatically generated here
+    }
+    
+    func step {
+        captMouseViewPosition(undef mouseX float, undef mouseY float)
+        this.is_back_button_hovered = isButtonHovered(this, func &getBackButtonPosition(*CreditsMenu, *float, *float), mouseX, mouseY)
+    }
+    
+    func click(mouseX, mouseY float, button int){
+        unless button == 1, return
+        
+        this.is_back_button_hovered = isButtonHovered(this, func &getBackButtonPosition(*CreditsMenu, *float, *float), mouseX, mouseY)
+        if this.is_back_button_hovered {
+            gamedata.setScene('optionsmenu')
+            sfx.play(sfx.back)
+            return
+        }
+    }
+    
+    func char(c uint) {}
+    func key(key, scancode, action, mods int) {}
+    
+    func draw {
+        captMouseViewPosition(undef mouseX float, undef mouseY float)
+        
+        #if enable_credits_hd_hover
+        andy_distance  float = distance(mouseX, mouseY, captViewWidth() / 2.0f - 128.0f, captViewHeight() / 2.0f)
+        isaac_distance float = distance(mouseX, mouseY, captViewWidth() / 2.0f + 128.0f, captViewHeight() / 2.0f)
+        #else
+        andy_distance  float = 0.0f
+        isaac_distance float = 0.0f
+        #end
+        
+        drawTextCentered("andy possis", captViewWidth() / 2.0f - 128.0f, captViewHeight() / 2.0f - 64.0f)
+        drawTextCentered("head artist", captViewWidth() / 2.0f - 128.0f, captViewHeight() / 2.0f + 64.0f)
+        drawCentered(andy_distance < 32.0f ? textures.andyhd : textures.andy, captViewWidth() / 2.0f - 128.0f, captViewHeight() / 2.0f, 64.0f, 64.0f)
+        drawCentered(textures.author, captViewWidth() / 2.0f - 128.0f, captViewHeight() / 2.0f, 64.0f, 64.0f)
+        
+        drawTextCentered("isaac shelton", captViewWidth() / 2.0f + 128.0f, captViewHeight() / 2.0f - 64.0f)
+        drawTextCentered("lead developer", captViewWidth() / 2.0f + 128.0f, captViewHeight() / 2.0f + 64.0f)
+        drawCentered(isaac_distance < 32.0f ? textures.isaachd : textures.isaac, captViewWidth() / 2.0f + 128.0f, captViewHeight() / 2.0f, 64.0f, 64.0f)
+        drawCentered(textures.author, captViewWidth() / 2.0f + 128.0f, captViewHeight() / 2.0f, 64.0f, 64.0f)
+        
+        this.getBackButtonPosition(undef back_x float, undef back_y float)
+        drawButton("back", back_x, back_y, this.is_back_button_hovered)
+    }
+    
+    func getBackButtonPosition(out x, y *float){
+        *x = 16.0f
+        *y = captViewHeight() - 16.0f - MAIN_MENU_BUTTON_HEIGHT
+    }
+}

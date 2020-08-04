@@ -146,6 +146,7 @@ struct ExtrasMenu (
         case CardKind::CREATURE, left_filter_texture = &textures.left_filter_creature
         case CardKind::SPELL,    left_filter_texture = &textures.left_filter_spell
         case CardKind::STAT,     left_filter_texture = &textures.left_filter_stat
+        case CardKind::TRAP,     left_filter_texture = &textures.left_filter_trap
         }
         
         captDrawTexture(*left_filter_texture, captViewWidth() - 256.0f, 0.0f, 128.0f, 24.0f)

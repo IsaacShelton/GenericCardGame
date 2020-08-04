@@ -1,0 +1,51 @@
+
+import 'main.adept'
+
+struct ProfileMenu (
+    is_back_button_hovered bool
+) {
+    func setup {
+        this.is_back_button_hovered = false
+    }
+    
+    func enter {}
+    func exit {}
+    
+    func __defer__ {
+        // NOTE: Due to a compiler issue, we have to force a __defer__ method to
+        // be automatically generated here
+    }
+    
+    func step {
+        captMouseViewPosition(undef mouseX float, undef mouseY float)
+        this.is_back_button_hovered = isButtonHovered(this, func &getBackButtonPosition(*ProfileMenu, *float, *float), mouseX, mouseY)
+    }
+    
+    func click(mouseX, mouseY float, button int){
+        unless button == 1, return
+        
+        this.is_back_button_hovered = isButtonHovered(this, func &getBackButtonPosition(*ProfileMenu, *float, *float), mouseX, mouseY)
+        if this.is_back_button_hovered {
+            gamedata.setScene('optionsmenu')
+            sfx.play(sfx.back)
+            return
+        }
+    }
+    
+    func char(c uint) {}
+    func key(key, scancode, action, mods int) {}
+    
+    func draw {
+        captMouseViewPosition(undef mouseX float, undef mouseY float)
+        
+        drawTextCentered("Name: " + gamedata.player_name, captViewWidth() / 2.0f, captViewHeight() / 2.0f)
+        
+        this.getBackButtonPosition(undef back_x float, undef back_y float)
+        drawButton("back", back_x, back_y, this.is_back_button_hovered)
+    }
+    
+    func getBackButtonPosition(out x, y *float){
+        *x = 16.0f
+        *y = captViewHeight() - 16.0f - MAIN_MENU_BUTTON_HEIGHT
+    }
+}

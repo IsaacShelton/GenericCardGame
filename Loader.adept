@@ -13,11 +13,13 @@ struct Loader (
     message String
 ) {
     func create {
-        srand(time(null))
+        randomSetSeed()
         
-        rand() // For some reason, the PRNG doesn't seem to be very random
-               // unless we call rand() once before we use it. No idea why!
-               // This shouldn't be required, but whatever
+        #unless use_mt19937
+            rand() // For some reason, the PRNG doesn't seem to be very random
+                   // unless we call rand() once before we use it. No idea why!
+                   // This shouldn't be required, but whatever
+        #end
         
         this.complete = false
         this.percentage = 0.0f
@@ -140,7 +142,7 @@ struct Loader (
     }
     
     func randomMessage String {
-        switch rand() % 24 {
+        switch random(24) as int {
         case  0, return "Reading the rule book"
         case  1, return "Igniting fires"
         case  2, return "Shuffling cards"

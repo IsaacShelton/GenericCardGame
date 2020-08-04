@@ -1,7 +1,7 @@
 
 import 'main.adept'
 
-enum CardKind (NONE, CREATURE, SPELL, STAT)
+enum CardKind (NONE, CREATURE, SPELL, STAT, TRAP)
 
 func toString(kind CardKind) String {
     switch kind {
@@ -9,6 +9,7 @@ func toString(kind CardKind) String {
     case CardKind::CREATURE, return "Creature"
     case CardKind::SPELL, return "Spell"
     case CardKind::STAT, return "Stat"
+    case CardKind::TRAP, return "Trap"
     }
     printf('ERROR: toString(CardKind): Unknown Card Kind\n')
     return "Unknown Card Kind"
@@ -19,7 +20,8 @@ func cycle(kind CardKind) CardKind {
     case CardKind::NONE,     return CardKind::CREATURE
     case CardKind::CREATURE, return CardKind::SPELL
     case CardKind::SPELL,    return CardKind::STAT
-    case CardKind::STAT,     return CardKind::NONE
+    case CardKind::STAT,     return CardKind::TRAP
+    case CardKind::TRAP,     return CardKind::NONE
     }
     return CardKind::NONE
 }

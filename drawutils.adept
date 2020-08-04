@@ -36,30 +36,18 @@ func isButtonHovered(this_object *$T, positioning_method func(*$T, *float, *floa
     return isButtonHovered(x, y, mouseX, mouseY)
 }
 
-func drawText(content String, x, y float) {
-    text Text = text(content)
-    text.draw(x, y)
-    text.destroy()
-}
-
-func drawText(content String, x, y float, font POD CaptTexture, scale float) {
-    text Text = text(content, scale)
+func drawText(content String, x, y float, font POD CaptTexture = textures.font, scale float = 14.0f) {
+    text Text = text(content, scale as double)
     text.draw(x, y, font)
     text.destroy()
 }
 
-func drawTextCentered(content String) {
-    drawTextCentered(content, captViewWidth() / 2.0f, captViewHeight() / 2.0f)
-}
-
-func drawTextCentered(content String, x float, y float) {
-    textWidth float = TEXT_14_STRIDE * content.length as float
-    text Text = text(content)
-    text.draw(x - textWidth / 2.0f, y - 14.0f / 2.0f)
-    text.destroy()
-}
-
-func drawTextCentered(content String, x float, y float, font POD CaptTexture) {
+func drawTextCentered(
+        content String,
+        x float = captViewWidth() / 2.0f,
+        y float = captViewHeight() / 2.0f,
+        font POD CaptTexture = textures.font) {
+    
     textWidth float = TEXT_14_STRIDE * content.length as float
     text Text = text(content)
     text.draw(x - textWidth / 2.0f, y - 14.0f / 2.0f, font)

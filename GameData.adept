@@ -11,6 +11,10 @@ import 'FPSMonitor.adept'
 import 'GameMode.adept'
 import 'OptionsMenu.adept'
 import 'ExtrasMenu.adept'
+import 'MusicMenu.adept'
+import 'SFXMenu.adept'
+import 'CreditsMenu.adept'
+import 'ProfileMenu.adept'
 
 struct GameData (
     scene *Scene,
@@ -43,6 +47,10 @@ struct GameData (
         this.scenes.addScene( 8, 'defeat', new DefeatMenu)
         this.scenes.addScene( 9, 'optionsmenu', new OptionsMenu)
         this.scenes.addScene(10, 'extrasmenu', new ExtrasMenu)
+        this.scenes.addScene(11, 'musicmenu', new MusicMenu)
+        this.scenes.addScene(12, 'sfxmenu', new SFXMenu)
+        this.scenes.addScene(13, 'creditsmenu', new CreditsMenu)
+        this.scenes.addScene(14, 'profilemenu', new ProfileMenu)
         this.assets_folder = where() + "assets/"
         this.loadPlayerName()
         this.gamemode.defaults()
@@ -66,8 +74,15 @@ struct GameData (
         this.interpreter.start(&this.manager)
         
         if this.player_name == "" {
-            // Make player to choose a name before going to mainmenu
-            this.setScene('choosename')
+            #unless auto_name
+                // Make player to choose a name before going to mainmenu
+                this.setScene('choosename')
+            #else
+                this.player_name = toString(&gamedata as int)
+                print("AUTONAME: '%'" % this.player_name)
+                
+                gamedata.manager.writeOutgoing("$name " + this.player_name + "\n")
+            #end
         } else {
             this.manager.writeOutgoing("$name " + this.player_name + "\n")
         }
@@ -149,47 +164,43 @@ struct GameData (
     }
     
     func loadPlayerName {
-        #if ignore_NAME_txt
-            this.player_name = ""
-            return
-        #end
-        
-        filename String = where() + "NAME.txt"
-        filename_cstr *ubyte = filename.cstr()
-        defer delete filename_cstr
-        
         this.player_name = ""
         
-        f *FILE = fopen(filename_cstr, 'r')
-        unless f, return
-        
-        buffer_length usize = 256
-        buffer *ubyte = new ubyte * buffer_length
-        defer delete buffer
-        unless fgets(buffer, buffer_length, f), fclose(f); return
-        
-        this.player_name = stringConstant(buffer).trimmed()
-        fclose(f)
+        #unless ignore_NAME_txt
+            filename String = where() + "NAME.txt"
+            filename_cstr *ubyte = filename.cstr()
+            defer delete filename_cstr
+            
+            f *FILE = fopen(filename_cstr, 'r')
+            unless f, return
+            
+            buffer_length usize = 256
+            buffer *ubyte = new ubyte * buffer_length
+            defer delete buffer
+            unless fgets(buffer, buffer_length, f), fclose(f); return
+            
+            this.player_name = stringConstant(buffer).trimmed()
+            fclose(f)
+        #end
     }
     
     func storePlayerName(name String) successful {
-        #if ignore_NAME_txt
-            return true
+        #unless ignore_NAME_txt
+            filename String = where() + "NAME.txt"
+            filename_cstr *ubyte = filename.cstr()
+            defer delete filename_cstr
+            
+            name.trim()
+            name_cstr *ubyte = name.cstr()
+            defer delete name_cstr
+            
+            f *FILE = fopen(filename_cstr, 'w')
+            unless f, return false
+            
+            fputs(name_cstr, f)
+            fclose(f)
         #end
         
-        filename String = where() + "NAME.txt"
-        filename_cstr *ubyte = filename.cstr()
-        defer delete filename_cstr
-        
-        name.trim()
-        name_cstr *ubyte = name.cstr()
-        defer delete name_cstr
-        
-        f *FILE = fopen(filename_cstr, 'w')
-        unless f, return false
-        
-        fputs(name_cstr, f)
-        fclose(f)
         return true
     }
     

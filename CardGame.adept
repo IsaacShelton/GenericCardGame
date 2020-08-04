@@ -1,4 +1,6 @@
 
+#default CardGame_backslash_to_show_pending_actions false
+
 import 'main.adept'
 import 'drawutils.adept'
 import 'listutils.adept'
@@ -9,10 +11,10 @@ import 'AttackOrder.adept'
 import 'CardAnimation.adept'
 import 'CardParticle.adept'
 
-#default CardGame_backslash_to_show_pending_actions true
-
 CARD_WIDTH   == 64.0f
 CARD_HEIGHT  == 96.0f
+CARD_INFO_WIDTH  == 12.8f
+CARD_INFO_HEIGHT == 96.0f
 MANA_WIDTH   == 32.0f
 MANA_HEIGHT  == 32.0f
 HEART_WIDTH  == 24.0f
@@ -172,6 +174,7 @@ struct CardGame (
             is_friendly bool = this.state.findOwner(order.aggressor) == this.state.findOwner(order.victim)
             
             if aggressor && victim {
+                counter <AttackOrder> Optional
                 did_attack_work successful = this.state.doAttack(aggressor, &victim, &this.particles, order.randomness)
                 this.playAttackAnimation(aggressor, victim, did_attack_work, is_friendly)
                 
@@ -269,8 +272,9 @@ struct CardGame (
                 this.dragging_card && y < captViewHeight() - CARD_HEIGHT {
             
             card *CardInstance = this.state.getMyCard(this.dragging_card)
+            can_afford bool = me && !me.sent_done && card ? me.mana >= me.getDiscountedCardCost(card.cost) : false
             
-            if me && !me.sent_done && card && me.mana >= card.cost && allowed(card.traits.usage, this.state.phase.kind) {
+            if can_afford && allowed(card.traits.usage, this.state.phase.kind) {
                 switch card.kind {
                 case CardKind::CREATURE
                     // If creature
@@ -290,7 +294,7 @@ struct CardGame (
                         }
                         
                         gamedata.manager.writeOutgoing(gamedata.player_name + "@spawn ~ " + card.name + " rightof " + toString(rightof_network_id) + "\n")
-                        me.mana -= card.cost
+                        me.mana -= me.getDiscountedCardCost(card.cost)
                         unless card.traits.separation, me.supply++
                         this.state.getRidOfMyCardInHand(this.dragging_card)
                     }
@@ -305,7 +309,8 @@ struct CardGame (
                     
                     unless card.traits.requires_target && target == 0 {
                         // Play spell
-                        gamedata.manager.writeOutgoing(gamedata.player_name + "@play " + card.name + " " + toString(target) + " `\n")
+                        play_command String = card.traits.urgent ? "@playnow " : "@play "
+                        gamedata.manager.writeOutgoing(gamedata.player_name + play_command + card.name + " " + toString(target) + " `\n")
                         
                         // If the spell gives mana to only this player,
                         // then give the mana immediately, and ignore the echo when it comes
@@ -315,12 +320,12 @@ struct CardGame (
                             this.playWizardsAidAnimation()
                         }
                         
-                        me.mana -= card.cost
+                        me.mana -= me.getDiscountedCardCost(card.cost)
                         this.state.getRidOfMyCardInHand(this.dragging_card)
                     }
                 case CardKind::STAT
                     gamedata.manager.writeOutgoing(gamedata.player_name + "@spawn ~ " + card.name + " rightof 0\n")
-                    me.mana -= card.cost
+                    me.mana -= me.getDiscountedCardCost(card.cost)
                     this.state.getRidOfMyCardInHand(this.dragging_card)
                 }
                 
@@ -337,6 +342,9 @@ struct CardGame (
             
             aggressor_card *CardInstance = this.state.getCardOnBoardByNetworkId(this.with_aggressor)
             if victim_card == null && aggressor_card.traits.can_heal, victim_card = this.getMyCardUnderneath(x, y)
+            
+            // Don't allow targetting self
+            if victim_card && this.with_aggressor == victim_card.network_id, victim_card = null
             
             if victim_card {
                 this.attack_orders.add(attackOrder(this.with_aggressor, victim_card.network_id))
@@ -389,7 +397,6 @@ struct CardGame (
         opponent *Player = this.state.getOpponent()
         captMouseViewPosition(undef mouseX float, undef mouseY float)
         
-        //captClearColor(captColor(139, 69, 19))
         captDrawTexture(textures.background_brown, 0.0f, 0.0f, captViewWidth(), captViewHeight())
         
         notice_message String = gamedata.manager.getIsOnline() ? "" : "You are Offline"
@@ -416,11 +423,14 @@ struct CardGame (
                 end_x float = mouseX
                 end_y float = mouseY
                 
+                using_card *CardInstance = this.state.getCardOnBoardByNetworkId(this.with_aggressor)
                 victim *CardInstance = this.getOpponentCardUnderneath(mouseX, mouseY)
                 
                 if victim == null {
-                    using_card *CardInstance = this.state.getCardOnBoardByNetworkId(this.with_aggressor)
                     if using_card.traits.can_heal, victim = this.getMyCardUnderneath(mouseX, mouseY)
+                    
+                    // Don't allow targetting self
+                    if victim && this.with_aggressor == victim.network_id, victim = null
                     
                     if victim && this.getMyCardPositionFromNetworkID(victim.network_id, undef victim_position CardPosition) {
                         end_x = victim_position.x
@@ -436,6 +446,8 @@ struct CardGame (
                         end_x = victim_position.x
                         end_y = victim_position.y
                     }
+                } else {
+                    friendly = using_card.traits.can_heal && mouseY > captViewHeight() / 2.0f
                 }
                 
                 drawLine(start.x, start.y, end_x, end_y, 8.0f, EndCapStyle::ROUND, friendly ? &textures.heal_line : &textures.attack_line)
@@ -663,6 +675,7 @@ struct CardGame (
         has_been_sad bool = status.is_sad
         has_been_on_fire bool = status.is_on_fire
         has_been_dancing bool = status.is_dancing
+        has_been_bleeding bool = status.is_bleeding
         
         if has_been_dancing {
             texture = now % 1.0 < 0.5 ? instance.ct.stand1 : instance.ct.cheer
@@ -686,6 +699,11 @@ struct CardGame (
         if status.is_raging {
             // Draw rage symbol if raging
             drawCentered(now % 1.0 < 0.5 ? textures.rage1 : textures.rage2, position.x, position.y, position.scale * CHARACTER_WIDTH, position.scale * CHARACTER_HEIGHT)
+        }
+        
+        if has_been_bleeding {
+            // Draw in front blood
+            drawCentered(now % 1.0 < 0.5 ? textures.bleeding1 : textures.bleeding2, position.x, position.y, position.scale * CHARACTER_WIDTH, position.scale * CHARACTER_HEIGHT)
         }
         
         if has_been_on_fire {
@@ -968,13 +986,16 @@ struct CardGame (
     }
 }
 
-func drawCard(instance *CardInstance, x_focus, y_focus, scale float){
+func drawCard(instance *CardInstance, x_focus, y_focus, scale float) {
     // NOTE: We can afford to call this ~50 times per frame
     
     top float = y_focus - scale * CARD_HEIGHT / 2.0f
     left float = x_focus - scale * CARD_WIDTH / 2.0f
     width float = scale * CARD_WIDTH
     height float = scale * CARD_HEIGHT
+    
+    // Standard Info
+    //captDrawTexture(textures.standard_info, left + width, top, scale * CARD_INFO_WIDTH, scale * CARD_INFO_HEIGHT)
     
     captDrawTexture(instance.getStandardCardTexture(), left, top, width, height)
     

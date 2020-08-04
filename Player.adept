@@ -1,0 +1,168 @@
+
+import 'main.adept'
+
+alias PlayerID = usize
+
+struct Player (
+    player_id PlayerID,
+    name String,
+    starting_hearts, hearts, mana, supply, draw_cost int,
+    hand <CardInstance> List,
+    board <CardInstance> List,
+    stat_card <CardInstance> Optional,
+    done, sent_done bool,
+    super, thrift int
+) {
+    func drawCardFromDeck(blueprint_name String) {
+        // Assumes that this player is user's player
+        blueprint *CardBlueprint = gamedata.deck.getCardBlueprint(blueprint_name)
+        unless blueprint, print("WARNING: Player.drawCard() couldn't find blueprint '%'" % blueprint_name); return
+        
+        this.hand.add(cardInstance(blueprint))
+    }
+    
+    func drawCardsFromDeck(amount usize, is_me bool) {
+        repeat amount {
+            // Maximum hand limit of 10 cards for now
+            if this.hand.length >= 10, return
+            
+            card CardInstance = gamedata.deck.randomCard()
+            
+            #if enable_debugging_hotkeys
+            if glfwGetKey(_captain_window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS {
+                card = gamedata.deck.getCardByName(glfwGetKey(_captain_window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS ? "sleight_of_hand" : "sleight_of_hand")
+            }
+            #end
+            
+            // Try to avoid redrawing cards
+            if is_me, repeat redrawing : 10 {
+                each CardInstance in this.hand {
+                    if it.name == card.name {
+                        card = gamedata.deck.randomCard()
+                        continue redrawing
+                    }
+                }
+                break
+            }
+            
+            this.hand.add(card)
+        }
+    }
+    
+    func spawnCard(blueprint_name String, unique_network_id CardNetworkID, relation String, related_unique_network_id CardNetworkID,
+            out particles *<*CardParticle> List, is_me bool, global_dancing int) {
+        destination usize = 0
+        
+        blueprint *CardBlueprint = gamedata.deck.getCardBlueprint(blueprint_name)
+        unless blueprint {
+            print("ERROR: GameState.spawnCard() failed to find card blueprint for '%'" % blueprint_name)
+            return
+        }
+        
+        // Handle if the card is a stat card
+        if blueprint.kind == CardKind::STAT {
+            // Bypass normal spawning process if it's a stat card
+            this.stat_card.rid()
+            
+            // Manually set stat card
+            if this.stat_card.has, this.stat_card.value.?__defer__()
+            this.stat_card.value = cardInstance(blueprint)
+            this.stat_card.has = true
+            return
+        }
+        
+        // Find where to put the creature card
+        if related_unique_network_id != 0, each CardInstance in static this.board {
+            if it.network_id == related_unique_network_id {
+                destination = relation == "leftof" ? idx : idx + 1
+                break
+            }
+        }
+        
+        this.board.insert(destination, cardInstance(blueprint))
+        
+        card *CardInstance = this.board.getPointer(destination)
+        card.assignNetworkID(unique_network_id)
+        
+        // Apply battlecry-adjacent
+        if card.traits.battlecry_adjacent != 0 {
+            left *CardInstance = destination == 0 ? null as *CardInstance : this.board.getPointer(destination - 1)
+            right *CardInstance = destination + 1 == this.board.length ? null as *CardInstance : this.board.getPointer(destination + 1)
+            
+            if left {
+                left.attack += card.traits.battlecry_adjacent
+                if particles, particles.addAttackBonus(left.network_id)
+            }
+            
+            if right {
+                right.attack += card.traits.battlecry_adjacent
+                if particles, particles.addAttackBonus(right.network_id)
+            }
+        }
+        
+        // Apply global_dancing
+        if global_dancing > 0 && global_dancing > card.traits.dancing {
+            card.traits.dancing = global_dancing
+        }
+        
+        // Don't keep track for supply of ourselves here, because it depends on the network
+        unless is_me || blueprint.traits.separation {
+            this.supply++
+        }
+    }
+    
+    func getCardOnBoardByNetworkId(network_id CardNetworkID) *CardInstance {
+        each CardInstance in this.board, if it.network_id == network_id, return &it
+        return null
+    }
+    
+    func addCardStatusesToList(out list_to_add_to *<CardStatus> List) {
+        each CardInstance in this.board, list_to_add_to.add(cardStatus(&it))
+    }
+    
+    func removeDeadCards(is_me bool) {
+        // NOTE: 'is_me' is whether this player is the "actual" player
+        each CardInstance in this.board, if it.isDead() {
+            unless it.traits.separation, this.supply--
+            
+            if it.traits.recycle, this.drawCardsFromDeck(it.traits.recycle, is_me)
+            
+            this.board.remove(idx--)
+        }
+    }
+    
+    func getDrawCost int {
+        unless this.stat_card.has, return this.draw_cost
+        
+        discount int = this.stat_card.getPointer().traits.draw_cost_reduction != 0
+        if discount != 0 {
+            return discount >= this.draw_cost ? 1 : this.draw_cost - discount
+        }
+        
+        return this.draw_cost
+    }
+    
+    func getDiscountedCardCost(initial_cost int) int {
+        return max(initial_cost - this.thrift, 0)
+    }
+}
+
+func addPlayer(this *<Player> List, player_id PlayerID, name String) *Player {
+    unless this.add(), return null
+    
+    new_player *Player = this.items at (this.length - 1)
+    new_player.player_id = player_id
+    new_player.name = name.clone()
+    new_player.starting_hearts = 3
+    new_player.hearts = 3
+    new_player.mana = 0
+    new_player.supply = 0
+    new_player.draw_cost = 2
+    // new_player.hand is left empty
+    // new_player.board is left empty
+    // new_player.stat_card is left with nothing
+    new_player.done = false
+    new_player.super = 0
+    new_player.thrift = 0
+    return new_player
+}

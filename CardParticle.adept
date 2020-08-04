@@ -145,6 +145,18 @@ func addResistance(this *<*CardParticle> List, network_id CardNetworkID) {
     this.spawn(newCardParticle(network_id, &textures.resistance, 50.0f, 50.0f, 0.0f, 2.0f, null))
 }
 
+func addTransform(this *<*CardParticle> List, network_id CardNetworkID) {
+    frames <*CaptTexture> List
+    durations <double> List
+    
+    frames.add(&textures.transform1)
+    durations.add(0.25f)
+    frames.add(&textures.transform2)
+    durations.add(0.25f)
+    
+    this.spawn(newCardParticle(network_id, frames, 50.0f, 50.0f, 0.0f, durations))
+}
+
 func spawn(this *<*CardParticle> List, particle *CardParticle) {
     // NOTE: Takes ownership of 'particle *CardParticle'
     particle.start = glfwGetTime()

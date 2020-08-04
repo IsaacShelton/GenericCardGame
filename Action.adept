@@ -27,6 +27,9 @@ import 'main.adept'
 // andy@spawn ~ ice_guy rightof 0
 // isaac@end
 
+// andy@steal ~
+// isaac@lost andy fire_guy
+
 struct Action (command_text String) {
     func commit() Action {
         a POD Action
@@ -56,7 +59,8 @@ struct Action (command_text String) {
         tokens <String> List = rest.split(" ")
         
         subject *Player = state.getPlayer(subject_name)
-        is_me bool = subject == state.getThisPlayer()
+        me *Player = state.getThisPlayer()
+        is_me bool = subject == me
         
         if tokens.get(0) == "@end" {
             if tokens.length != 1 {
@@ -134,9 +138,9 @@ struct Action (command_text String) {
             
             state.attack_orders.add(attackOrder(aggressor.toUlong(), victim.toUlong(), randomness.toUlong()))
             return true
-        } else if tokens.get(0) == "@play" {            
+        } else if tokens.get(0) == "@play" || tokens.get(0) == "@playnow" {            
             if tokens.length != 4 {
-                print("ERROR: Action.apply() on @play command with mismatching arity -> '%'" % this.command_text)
+                print("ERROR: Action.apply() on % command with mismatching arity -> '%'" % tokens.get(0) % this.command_text)
                 return false
             }
             
@@ -165,7 +169,13 @@ struct Action (command_text String) {
                 return false
             }
             
-            state.spell_orders.add(spellOrder(subject.player_id, blueprint, victim.toUlong(), randomness.toUlong()))
+            if tokens.get(0) == "@playnow" {
+                victim_instance *CardInstance = state.getCardOnBoardByNetworkId(victim.toUlong())
+                state.doSpell(subject.player_id, blueprint, victim_instance, particles, randomness.toUlong())
+            } else {
+                state.spell_orders.add(spellOrder(subject.player_id, blueprint, victim.toUlong(), randomness.toUlong()))
+            }
+            
             return true
         } else if tokens.get(0) == "@draw" {
             if tokens.length != 1 {
@@ -178,12 +188,56 @@ struct Action (command_text String) {
             }
             
             return true
+        } else if tokens.get(0) == "@steal" {
+            if tokens.length != 2 {
+                print("ERROR: Action.apply() on @steal command with mismatching arity -> '%'" % this.command_text)
+                return false
+            }
+            
+            randomness StringView = tokens.get(1)
+            
+            unless is_me || me.hand.length == 0 {
+                hand_index usize = randomness.toUlong() % me.hand.length
+                gamedata.manager.writeOutgoing(me.name + "@lost " + subject.name + " " + me.hand.getPointer(hand_index).name + "\n")
+                me.hand.remove(hand_index)
+            }
+            
+            return true
+        } else if tokens.get(0) == "@lost" {
+            if tokens.length != 3 {
+                print("ERROR: Action.apply() on @lost command with mismatching arity -> '%'" % this.command_text)
+                return false
+            }
+            
+            to_who StringView = tokens.get(1)
+            which_card StringView = tokens.get(2)
+            
+            if to_who == me.name {
+                me.drawCardFromDeck(which_card)
+            } else {
+                to_player *Player = state.getPlayer(to_who)
+                if to_player, to_player.drawCardsFromDeck(1, false)
+            }
+            
+            return true
         } else {
             print("WARNING: Unrecognized gameplay action '%'" % this.command_text)
             return false
         }
         
         return true
+    }
+    
+    func isUrgent bool {
+        at_symbol long = this.command_text.first('@'ub)
+        if at_symbol == -1, return false
+        
+        rest String = this.command_text.range(at_symbol, this.command_text.length)
+        space_symbol long = rest.first(' 'ub)
+        command_type String = space_symbol ? rest.range(0, space_symbol) : rest
+        
+        if command_type == "@playnow" || command_type == "@steal" || command_type == "@lost", return true
+        return false
     }
 }
 

@@ -1,0 +1,72 @@
+
+import 'main.adept'
+
+#default settings_immutable false
+SETTINGS_FILENAME == "SETTINGS.txt"
+
+struct Settings (
+    music float,
+    sfx float
+) {
+    func defaults {
+        this.music = 1.0f
+        this.sfx = 1.0f
+    }
+    
+    func load successful {
+        this.defaults()
+        
+        filename String = where() + "assets/" + SETTINGS_FILENAME
+        filename_cstr *ubyte = filename.cstr()
+        defer delete filename_cstr
+        
+        f *FILE = fopen(filename_cstr, 'r')
+        unless f, return false
+        defer fclose(f)
+        
+        buffer_size usize = 1024
+        buffer *ubyte = new ubyte * 1024
+        defer delete buffer
+        
+        while fgets(buffer, buffer_size, f) != null {
+            // Strip off newline if it's at the end of the buffer
+            if buffer[strlen(buffer) - 1] == '\n'ub, buffer[strlen(buffer) - 1] = 0x00
+            
+            line String = stringConstant(buffer)
+            if line.empty(), continue
+            
+            tag String = line.getUntilAsView(' 'ub)
+            rest String = line.range(line.atUntil(' 'ub) + 1, line.length)
+            
+            if tag == "music",    this.music = rest.toFloat()
+            else if tag == "sfx", this.sfx = rest.toFloat()
+            else print("Unrecognized setting '%'" % tag)
+        }
+        
+        return true
+    }
+    
+    func store successful {
+        #unless settings_immutable
+            filename String = where() + "assets/" + SETTINGS_FILENAME
+            filename_cstr *ubyte = filename.cstr()
+            defer delete filename_cstr
+            
+            f *FILE = fopen(filename_cstr, 'w')
+            unless f, return false
+            defer fclose(f)
+            
+            fprintf(f, 'music %f\n', this.music as double)
+            fprintf(f, 'sfx %f\n', this.sfx as double)
+        #end
+        
+        return true
+    }
+    
+    func apply {
+        soundtrack.setVolumeAmplifier(this.music)
+        sfx.setVolumeAmplifier(this.sfx)
+    }
+}
+
+settings Settings

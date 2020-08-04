@@ -54,6 +54,7 @@ struct CardInstance (
         case CardKind::CREATURE, return textures.standard_creature_card
         case CardKind::SPELL,    return textures.standard_spell_card
         case CardKind::STAT,     return textures.standard_stat_card
+        case CardKind::TRAP,     return textures.standard_trap_card
         }
         return textures.standard_card
     }
@@ -79,11 +80,16 @@ struct CardInstance (
     }
     
     func heal(amount int) successful {
-        // Returns whether any healing was done
-        if this.hp == this.max_hp, return false
+        // NOTE: Returns whether any healing was done
         
-        if this.hp + amount >= this.max_hp, this.hp = this.max_hp
-        else                                this.hp += amount
+        // Cannot heal if marked as unhealable
+        if this.traits.unhealable, return false
+        
+        // Cannot heal if already at maximum HP
+        if this.hp >= this.max_hp, return false
+        
+        // Heal no more than up to maximum HP
+        this.hp = min(this.hp + amount, this.max_hp)
         return true
     }
     

@@ -9,12 +9,18 @@ pragma compiler_version '2.3'
 #default no_music                 false
 #default enable_music_hotkeys     true
 #default enable_debugging_hotkeys false
+#default enable_credits_hd_hover  false
+#default auto_name                false
+#default use_mt19937              true
 
 #unless release
+    #print "[BUILD] Using develop configuration..."
     #set fullscreen false
     #set ignore_NAME_txt true
-    #set no_music false
+    #set auto_name true
+    #set no_music true
     #set enable_debugging_hotkeys true
+    #set settings_immutable true
 #end
 
 import '2.3/basics.adept'
@@ -23,6 +29,7 @@ import '2.3/List.adept'
 import '2.3/Matrix4f.adept'
 import '2.3/audio.adept'
 
+import 'random.adept'
 import 'NetworkManager.adept'
 import 'NetworkInterpreter.adept'
 import 'RoomListing.adept'
@@ -37,6 +44,7 @@ import 'lines.adept'
 import 'SoundTrack.adept'
 import 'SoundEffects.adept'
 import 'Loader.adept'
+import 'Settings.adept'
 
 func main(argc int, argv **ubyte) {
     repeat static argc - 1 {
@@ -63,7 +71,7 @@ func main(argc int, argv **ubyte) {
     #if fullscreen
     captStart('Generic Card Game', true)
     #else
-    captStart('Generic Card Game', 640, 480, false)
+    captStart('Generic Card Game', 1280, 720, false)
     #end
 }
 
@@ -71,6 +79,7 @@ func onSetup {
     signal(SIGPIPE, SIG_IGN)
     audioInit()
     textures.load()
+    settings.load()
     loader.create()
 }
 
@@ -91,6 +100,7 @@ func onStep {
     if loader.didFinishLoading() {
         soundtrack.start()
         gamedata.loadDeck()
+        settings.apply()
     }
     
     if loader.isComplete() {

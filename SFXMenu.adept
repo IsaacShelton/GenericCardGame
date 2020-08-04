@@ -1,0 +1,91 @@
+
+import 'main.adept'
+
+struct SFXMenu (
+    is_back_button_hovered bool,
+    slider_height float,
+    slider_normalized float,
+    nub_x1 float,
+    nub_x2 float,
+    dragging bool,
+    drag_x float
+) {
+    func setup {
+        this.is_back_button_hovered = false
+        this.dragging = false
+        this.slider_normalized = clamp(settings.sfx / 3.0f, 0.0f, 1.0f)
+    }
+    
+    func enter {}
+    func exit {}
+    
+    func __defer__ {
+        // NOTE: Due to a compiler issue, we have to force a __defer__ method to
+        // be automatically generated here
+    }
+    
+    func step {
+        captMouseViewPosition(undef mouseX float, undef mouseY float)
+        
+        this.is_back_button_hovered = isButtonHovered(this, func &getBackButtonPosition(*SFXMenu, *float, *float), mouseX, mouseY)
+        
+        nub_width float = 64.0f
+        
+        if this.dragging {
+            nub_left_bound float = mouseX - this.drag_x
+            min_nub_left_bound float = captViewWidth() / 2.0f - 128.0f
+            max_nub_left_bound float = captViewWidth() / 2.0f + 128.0f - nub_width
+            nub_left_bound = clamp(nub_left_bound, min_nub_left_bound, max_nub_left_bound)
+            
+            this.slider_normalized = (nub_left_bound - min_nub_left_bound) / (max_nub_left_bound - min_nub_left_bound)
+            this.slider_normalized = clamp(this.slider_normalized, 0.0f, 1.0f)
+            sfx.setVolumeAmplifier(this.slider_normalized * 3.0f)
+        }
+        
+        this.slider_height = captViewHeight() / 2.0f + 64.0f
+        this.nub_x1 = captViewWidth() / 2.0f - 128.0f + (256.0f - nub_width) * this.slider_normalized
+        this.nub_x2 = captViewWidth() / 2.0f - 128.0f + nub_width + (256.0f - nub_width) * this.slider_normalized
+    }
+    
+    func click(mouseX, mouseY float, button int){
+        unless button == 1, return
+        
+        this.is_back_button_hovered = isButtonHovered(this, func &getBackButtonPosition(*SFXMenu, *float, *float), mouseX, mouseY)
+        if this.is_back_button_hovered {
+            gamedata.setScene('optionsmenu')
+            sfx.play(sfx.back)
+            
+            settings.sfx = this.slider_normalized * 3.0f
+            settings.store()
+            return
+        }
+        
+        if mouseX >= this.nub_x1 && mouseX <= this.nub_x2 && fabsf(mouseY - this.slider_height) < 6.0f {
+            this.dragging = true
+            this.drag_x = mouseX - this.nub_x1
+        }
+    }
+    
+    func release(mouseX, mouseY float, button int) {
+        unless button == 1, return
+        this.dragging = false
+    }
+    
+    func char(c uint) {}
+    func key(key, scancode, action, mods int) {}
+    
+    func draw {
+        drawLine(captViewWidth() / 2.0f - 128.0f, this.slider_height, captViewWidth() / 2.0f + 128.0f, this.slider_height, 8.0f, EndCapStyle::ROUND, &textures.unloaded_line)
+        drawLine(this.nub_x1, this.slider_height, this.nub_x2, this.slider_height, 12.0f, EndCapStyle::ROUND, &textures.loading_line)
+        
+        drawTextCentered("%%" % (this.slider_normalized * 300.0f) as int)
+        
+        this.getBackButtonPosition(undef back_x float, undef back_y float)
+        drawButton("back", back_x, back_y, this.is_back_button_hovered)
+    }
+    
+    func getBackButtonPosition(out x, y *float){
+        *x = 16.0f
+        *y = captViewHeight() - 16.0f - MAIN_MENU_BUTTON_HEIGHT
+    }
+}

@@ -12,6 +12,7 @@ struct CardTraits (
     fire_resistant bool,         // (creature only)
     invulnerable_to_blunt bool,  // (creature only)
     must_be_attacked_last bool,  // (creature only)
+    must_be_attacked_first bool, // (creature only)
     resistant_over int,          // (creature only)
     separation bool,             // (creature only)
     gains_hp int,                // (creature only)
@@ -25,6 +26,14 @@ struct CardTraits (
     burning int,                 // (creature only)
     flimsy int,                  // (creature only)
     attack_equals_hp bool,       // (creature only)
+    counter_attack bool,         // (creature only)
+    ignores_counter_attack bool, // (creature only)
+    cutting bool,                // (creature only)
+    passive_cutting bool,        // (creature only)
+    bleeding bool,               // (creature only)
+    resistance int,              // (creature only)
+    unhealable bool,             // (creature only)
+    biting bool,                 // (creature only)
     
     applies_shield int,          // (spell only)
     draw_immediately int,        // (spell only)
@@ -37,6 +46,11 @@ struct CardTraits (
     applies_rage bool,           // (spell only)
     gives_mana int,              // (spell only)
     everybody_burn_now int,      // (spell only)
+    steal_random int,            // (spell only)
+    urgent bool,                 // (spell only)
+    transform bool,              // (spell only)
+    super int,                   // (spell only)
+    thrift int,                  // (spell only)
     
     draw_cost_reduction int,     // (stat only)
     applies_resistance int,      // (stat only)
@@ -52,6 +66,7 @@ struct CardTraits (
         this.fire_resistant = false
         this.invulnerable_to_blunt = false
         this.must_be_attacked_last = false
+        this.must_be_attacked_first = false
         this.resistant_over = 0
         this.separation = false
         this.gains_hp = 0
@@ -64,6 +79,14 @@ struct CardTraits (
         this.burning = 0
         this.flimsy = 0
         this.attack_equals_hp = false
+        this.counter_attack = false
+        this.ignores_counter_attack = false
+        this.cutting = false
+        this.passive_cutting = false
+        this.bleeding = false
+        this.resistance = 0
+        this.unhealable = false
+        this.biting = false
         
         this.applies_shield = 0
         this.draw_immediately = 0
@@ -76,6 +99,11 @@ struct CardTraits (
         this.applies_rage = false
         this.gives_mana = 0
         this.everybody_burn_now = 0
+        this.steal_random = 0
+        this.urgent = false
+        this.transform = false
+        this.super = 0
+        this.thrift = 0
         
         this.draw_cost_reduction = 0
         this.applies_resistance = 0
@@ -97,6 +125,7 @@ struct CardTraits (
         if this.fire_resistant,          result.append("fire-resistant" + separator)
         if this.invulnerable_to_blunt,   result.append("invulnerable-to-blunt"  + separator)
         if this.must_be_attacked_last,   result.append("must-be-attacked-last"  + separator)
+        if this.must_be_attacked_first,  result.append("must-be-attacked-first" + separator)
         if this.resistant_over != 0,     result.append("resistant-over %" % this.resistant_over + separator)
         if this.separation,              result.append("separation" + separator)
         if this.gains_hp != 0,           result.append("gains-hp %" % this.gains_hp + separator)
@@ -109,6 +138,14 @@ struct CardTraits (
         if this.burning != 0,            result.append("burning %" % this.burning + separator)
         if this.flimsy != 0,             result.append("flimsy %" % this.flimsy + separator)
         if this.attack_equals_hp,        result.append("attack-equals-hp" + separator)
+        if this.counter_attack,          result.append("counter-attack" + separator)
+        if this.ignores_counter_attack,  result.append("ignores-counter-attack" + separator)
+        if this.cutting,                 result.append("cutting" + separator)
+        if this.passive_cutting,         result.append("passive-cutting" + separator)
+        if this.bleeding,                result.append("bleeding" + separator)
+        if this.resistance != 0,         result.append("resistance %" % this.resistance + separator)
+        if this.unhealable,              result.append("unhealable" + separator)
+        if this.biting,                  result.append("biting" + separator)
         
         // Primarily for Spells
         if this.applies_shield,          result.append("applies-shield %" % this.applies_shield + separator)
@@ -122,6 +159,11 @@ struct CardTraits (
         if this.applies_rage,            result.append("applies-rage" + separator)
         if this.gives_mana,              result.append("gives-mana %" % this.gives_mana + separator)
         if this.everybody_burn_now,      result.append("everybody-burn-now %" % this.everybody_burn_now + separator)
+        if this.steal_random,            result.append("steal-random %" % this.steal_random + separator)
+        if this.urgent,                  result.append("urgent" + separator)
+        if this.transform,               result.append("transform" + separator)
+        if this.super,                   result.append("super %" % this.super + separator)
+        if this.thrift,                  result.append("thrift %" % this.thrift + separator)
         
         // Primarily for Stats
         if this.draw_cost_reduction,     result.append("draw-cost-reduction %" % this.draw_cost_reduction + separator)

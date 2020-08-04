@@ -1,7 +1,7 @@
 
 import 'main.adept'
 
-OPTIONS_BUTTON_COUNT == 4
+OPTIONS_BUTTON_COUNT == 5
 
 struct OptionsMenu (
     buttons <String> List,
@@ -10,12 +10,16 @@ struct OptionsMenu (
     is_back_button_hovered bool
 ) {
     func setup {
+        this.buttons.add("profile")
         this.buttons.add("extras")
         this.buttons.add("music")
         this.buttons.add("sfx")
+        this.buttons.add("credits")
+        this.actions.add(func &doOptionsProfile)
         this.actions.add(func &doOptionsExtras)
         this.actions.add(func &doOptionsMusic)
         this.actions.add(func &doOptionsSFX)
+        this.actions.add(func &doOptionsCredits)
         this.hovered_button = 0 // 0 == none
         this.is_back_button_hovered = false
     }
@@ -85,7 +89,7 @@ func getOptionsMenuButtonPosition(button int, out x, y *float){
     
     middle_x float = captViewWidth() / 2.0f
     middle_y float = captViewHeight() / 2.0f
-    y_starting_offset float = 64.0f - 32.0f
+    y_starting_offset float = 96.0f
     y_run float = MAIN_MENU_BUTTON_HEIGHT + 16.0f
     
     x_start float = middle_x - MAIN_MENU_BUTTON_WIDTH / 2.0f
@@ -104,14 +108,22 @@ func isMouseOverOptionsMenuButton(mouse_x, mouse_y float, button int) bool {
         mouse_y > y && mouse_y < y + MAIN_MENU_BUTTON_HEIGHT
 }
 
+func doOptionsProfile {
+    gamedata.setScene('profilemenu')
+}
+
 func doOptionsExtras {
     gamedata.setScene('extrasmenu')
 }
 
 func doOptionsMusic {
-    soundtrack.toggle()
+    gamedata.setScene('musicmenu')
 }
 
 func doOptionsSFX {
-    sfx.toggle()
+    gamedata.setScene('sfxmenu')
+}
+
+func doOptionsCredits {
+    gamedata.setScene('creditsmenu')
 }
