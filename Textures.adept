@@ -39,8 +39,14 @@ struct Textures (
     fire2,
     fire3,
     fire4,
+    blue_fire1,
+    blue_fire2,
+    blue_fire3,
+    blue_fire4,
     fire_debuff,
     fire_debuff_hr,
+    fire_debuff_blue,
+    fire_debuff_blue_hr,
     popup_attack1,
     popup_attack2,
     popup_attack3,
@@ -82,7 +88,21 @@ struct Textures (
     bleeding1,
     bleeding2,
     transform1,
-    transform2 CaptTexture
+    transform2,
+    disco,
+    floor_spikes1,
+    floor_spikes2,
+    reflective_shield1,
+    reflective_shield2,
+    party_popper1,
+    party_popper2,
+    trap,
+    super_meter,
+    super_meter_left_cap,
+    super_meter_right_cap,
+    super_meter_left_cap_full,
+    super_meter_right_cap_full,
+    super_meter_background CaptTexture
 ) {
     func load {
         assets_folder String = where() + "assets/"
@@ -94,8 +114,10 @@ struct Textures (
             "popup_shield1", "popup_shield2", "popup_shield3", "resistance",
             "wizards_aid1", "wizards_aid2", "wizards_aid3", "wizards_aid4",
             "wizards_aid5", "wizards_aid6", "wizards_aid7", "title", "isaac", "andy", "author",
-            "bleeding1", "bleeding2"
-        }, 29)
+            "bleeding1", "bleeding2", "floor_spikes1", "floor_spikes2", "reflective_shield1", "reflective_shield2",
+            "super_meter", "super_meter_left_cap", "super_meter_right_cap", "super_meter_left_cap_full", "super_meter_right_cap_full",
+            "super_meter_background"
+        }, 39)
         
         each *ubyte in [info.member_names, info.length] {
             member_name String = stringConstant(it)
@@ -180,4 +202,3 @@ struct DynamicTextures (textures <*CaptTexture> List) {
 
 textures Textures
 dynamic_textures DynamicTextures
-

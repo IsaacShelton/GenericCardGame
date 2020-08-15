@@ -1,9 +1,38 @@
+sword_master
+ creature
+ title Sword Master
+ description Attacks twice
+ cost 4
+ hp 12
+ attack 6
+ offense sharp
+ defense flesh
+ attacks 2
+blue_fireball
+ spell
+ title Blue Fireball
+ description Deals 2 damage to a creature and causes the eternal fire debuff
+ cost 2
+ requires-target
+ gives-eternal-fire
+ attack 2
+eyeball
+ creature
+ title Eyeball
+ description When placed, adjacent creatures gain permanent +4 Attack
+ cost 3
+ hp 6
+ attack 6
+ offense blunt
+ defense spectral
+ battlecry-adjacent 4
 reflective_shield
  trap
  title Reflective Shield
  description When activated, attackers take damage equal to the amount dealt
  cost 4 
  reflect
+ activation on-attack
 party_popper
  trap
  title Party Popper
@@ -11,12 +40,14 @@ party_popper
  cost 2
  activation death
  gives-mana 2
+ activation on-death
 floor_spikes
  trap
  title Floor Spikes
  description When activated, attackers take 5 damage. Expires after 1 battle phase
  cost 2
  attack 5
+ activation on-attack
  expires 1
 glass_guy
  creature
@@ -32,7 +63,7 @@ glass_guy
 wizard_overcharge
  spell
  title Wizard Overcharge
- description Cards are 1 mana point cheaper to play for 1 spawn phase
+ description All cards are 1 mana point cheaper to play during this turn
  cost 2
  thrift 1
 flying_snake

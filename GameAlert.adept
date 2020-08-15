@@ -23,7 +23,7 @@ struct GameAlert (text Text, has_text bool, x_position, text_width float) {
     
     func draw {
         unless this.has_text, return
-        this.text.draw(this.x_position, captViewHeight() / 2.0f - 14.0f / 2.0f)
+        this.text.draw(this.x_position, captViewHeight() / 2.0f + CARD_GAME_VERTICAL_OFFSET - 14.0f / 2.0f)
     }
     
     func shouldDie bool {

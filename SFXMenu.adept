@@ -16,13 +16,10 @@ struct SFXMenu (
         this.slider_normalized = clamp(settings.sfx / 3.0f, 0.0f, 1.0f)
     }
     
+    func __defer__ {}
+    
     func enter {}
     func exit {}
-    
-    func __defer__ {
-        // NOTE: Due to a compiler issue, we have to force a __defer__ method to
-        // be automatically generated here
-    }
     
     func step {
         captMouseViewPosition(undef mouseX float, undef mouseY float)

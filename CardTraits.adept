@@ -1,5 +1,6 @@
 
 import 'main.adept'
+import 'CardActivation.adept'
 
 struct CardTraits (
     developer bool,
@@ -34,6 +35,8 @@ struct CardTraits (
     resistance int,              // (creature only)
     unhealable bool,             // (creature only)
     biting bool,                 // (creature only)
+    eternal_fire bool,           // (creature only)
+    attacks int,                 // (creature only)
     
     applies_shield int,          // (spell only)
     draw_immediately int,        // (spell only)
@@ -51,10 +54,15 @@ struct CardTraits (
     transform bool,              // (spell only)
     super int,                   // (spell only)
     thrift int,                  // (spell only)
+    gives_eternal_fire bool,     // (spell only)
     
     draw_cost_reduction int,     // (stat only)
     applies_resistance int,      // (stat only)
-    ignore_effect_damage bool    // (stat only)
+    ignore_effect_damage bool,   // (stat only)
+    
+    activation CardActivation,   // (trap only)
+    expires int,                 // (trap only)
+    reflect bool                 // (trap only)
 ) {
     func defaults {
         this.developer = false
@@ -87,6 +95,8 @@ struct CardTraits (
         this.resistance = 0
         this.unhealable = false
         this.biting = false
+        this.eternal_fire = false
+        this.attacks = 1
         
         this.applies_shield = 0
         this.draw_immediately = 0
@@ -104,10 +114,15 @@ struct CardTraits (
         this.transform = false
         this.super = 0
         this.thrift = 0
+        this.gives_eternal_fire = false
         
         this.draw_cost_reduction = 0
         this.applies_resistance = 0
         this.ignore_effect_damage = false
+        
+        this.activation = cardActivation(CardActivationKind::NONE)
+        this.expires = 0
+        this.reflect = false
     }
     
     func toString(newlines bool) String {
@@ -146,6 +161,8 @@ struct CardTraits (
         if this.resistance != 0,         result.append("resistance %" % this.resistance + separator)
         if this.unhealable,              result.append("unhealable" + separator)
         if this.biting,                  result.append("biting" + separator)
+        if this.eternal_fire,            result.append("eternal-fire" + separator)
+        if this.attacks != 0,            result.append("attacks %" % this.attacks + separator)
         
         // Primarily for Spells
         if this.applies_shield,          result.append("applies-shield %" % this.applies_shield + separator)
@@ -164,11 +181,17 @@ struct CardTraits (
         if this.transform,               result.append("transform" + separator)
         if this.super,                   result.append("super %" % this.super + separator)
         if this.thrift,                  result.append("thrift %" % this.thrift + separator)
+        if this.gives_eternal_fire,      result.append("gives-eternal-fire" + separator)
         
         // Primarily for Stats
         if this.draw_cost_reduction,     result.append("draw-cost-reduction %" % this.draw_cost_reduction + separator)
         if this.applies_resistance,      result.append("applies-resistance %" % this.applies_resistance + separator)
         if this.ignore_effect_damage,    result.append("ignore-effect-damage" + separator)
+        
+        // Primarily for Traps
+        if this.activation.kind != CardActivationKind::NONE, result.append("activation %" % this.activation.toString() + separator)
+        if this.expires,                 result.append("expires %" % this.expires + separator)
+        if this.reflect,                 result.append("reflect" + separator)
         
         result.trim()
         return result.commit()

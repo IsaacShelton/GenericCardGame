@@ -7,16 +7,16 @@ struct CreateMenu (
 ) {
     func setup {}
     
-    func __defer__ {
-        // NOTE: Due to a compiler issue, we have to force a __defer__ method to
-        // be automatically generated here
-    }
-    
     func enter {
         this.name = ""
     }
     
     func exit {}
+    
+    func __defer__ {
+        // Due to the compiler not yet automatically generating __defer__ functions
+        // via func& lookup, we have to manually ensure __defer__ is generated
+    }
     
     func step {
         captMouseViewPosition(undef mouseX float, undef mouseY float)

@@ -82,7 +82,7 @@ func drawLine(x1, y1, x2, y2, thickness float, end_cap_style EndCapStyle, textur
     
     model CaptModel = createLineModel(points, thickness, JointStyle::MITER, end_cap_style)
     drawLineModel(0.0f, 0.0f, texture, model)
-    model.free()
+    model.destroy()
 }
 
 func drawLineModel(x_translation, y_translation float, texture *CaptTexture, model CaptModel) {

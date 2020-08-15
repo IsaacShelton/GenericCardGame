@@ -233,7 +233,15 @@ struct NetworkInterpreter (
     }
     
     func clearActions(){
+        pthread_mutex_lock(&this.access_mutex)
+        defer pthread_mutex_unlock(&this.access_mutex)
         each ActionAgent in this.agents, it.clearActions()
+    }
+    
+    func clearAgents {
+        pthread_mutex_lock(&this.access_mutex)
+        defer pthread_mutex_unlock(&this.access_mutex)
+        this.agents.clear()
     }
     
     func ignoreNextJoinMessageFrom(name String){

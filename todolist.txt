@@ -1,0 +1,7 @@
++ Add traps into the game
+    + with different activation types
+        + on death
+        + on attack
++ Add trapped animation
++ Add spell animation
++ Dance party background

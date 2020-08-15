@@ -157,6 +157,46 @@ func addTransform(this *<*CardParticle> List, network_id CardNetworkID) {
     this.spawn(newCardParticle(network_id, frames, 50.0f, 50.0f, 0.0f, durations))
 }
 
+func addTrap(this *<*CardParticle> List, network_id CardNetworkID) {
+    this.spawn(newCardParticle(network_id, &textures.trap, 108.0f, 24.0f, CHARACTER_HEIGHT / -2.0f - 12.0f, 0.25f, null))
+}
+
+func addFloorSpikes(this *<*CardParticle> List, network_id CardNetworkID) {
+    frames <*CaptTexture> List
+    durations <double> List
+    
+    frames.add(&textures.floor_spikes1)
+    durations.add(0.5f)
+    frames.add(&textures.floor_spikes2)
+    durations.add(0.5f)
+    
+    this.spawn(newCardParticle(network_id, frames, 32.0f, 32.0f, 0.0f, durations))
+}
+
+func addReflectiveShield(this *<*CardParticle> List, network_id CardNetworkID) {
+    frames <*CaptTexture> List
+    durations <double> List
+    
+    frames.add(&textures.reflective_shield1)
+    durations.add(0.25f)
+    frames.add(&textures.reflective_shield2)
+    durations.add(0.5f)
+    
+    this.spawn(newCardParticle(network_id, frames, 50.0f, 50.0f, 0.0f, durations))
+}
+
+func addPartyPopper(this *<*CardParticle> List, network_id CardNetworkID) {
+    frames <*CaptTexture> List
+    durations <double> List
+    
+    frames.add(&textures.party_popper1)
+    durations.add(0.5f)
+    frames.add(&textures.party_popper2)
+    durations.add(0.5f)
+    
+    this.spawn(newCardParticle(network_id, frames, 50.0f, 50.0f, 0.0f, durations))
+}
+
 func spawn(this *<*CardParticle> List, particle *CardParticle) {
     // NOTE: Takes ownership of 'particle *CardParticle'
     particle.start = glfwGetTime()

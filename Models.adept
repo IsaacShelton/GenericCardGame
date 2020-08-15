@@ -1,0 +1,16 @@
+
+import 'main.adept'
+
+struct Models (
+    disco CaptModel
+) {
+    func load {
+        this.disco = captModel(1000.0f, 1000.0f)
+    }
+    
+    func unload {
+        this.disco.destroy()
+    }
+}
+
+models Models

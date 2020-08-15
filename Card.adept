@@ -5,7 +5,6 @@ import 'Defense.adept'
 
 import 'CardTraits.adept'
 import 'CardBlueprint.adept'
-import 'CardEffect.adept'
 import 'CardKind.adept'
 import 'CardPosition.adept'
 
@@ -20,8 +19,6 @@ struct CardInstance (
     cost, hp, max_hp, attack int,
     offense Offense,
     defense Defense,
-    attributes <CardEffect> List,
-    modifiers <CardEffect> List,
     ct CardTextures,
     traits CardTraits
 ) {
@@ -38,8 +35,6 @@ struct CardInstance (
         this.attack = other.attack
         this.offense = POD other.offense
         this.defense = POD other.defense
-        this.attributes = other.attributes.clone()
-        this.modifiers = other.modifiers.clone()
         this.ct = other.ct
         this.traits = other.traits
     }
@@ -69,8 +64,6 @@ struct CardInstance (
         print(" attack: %" % this.attack)
         print(" offense: %" % this.offense.toString())
         print(" defense: %" % this.defense.toString())
-        print(" attributes:")
-        each CardEffect in this.attributes, print("  % = %" % it.identifier % it.value)
         print(" textures: %" % (this.ct.portrait != &textures.placeholder))
         print(" traits: %" % this.traits.toString(false))
     }
@@ -114,8 +107,6 @@ func cardInstance(blueprint *CardBlueprint) CardInstance {
     instance.attack = blueprint.attack
     instance.offense = POD blueprint.offense
     instance.defense = POD blueprint.defense
-    instance.attributes = blueprint.attributes.clone()
-    // (instance.modifiers is left blank)
     instance.ct = blueprint.ct
     instance.traits = blueprint.traits
     return instance

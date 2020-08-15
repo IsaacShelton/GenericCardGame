@@ -220,6 +220,15 @@ struct Action (command_text String) {
             }
             
             return true
+        } else if tokens.get(0) == "@trap" {
+            if tokens.length != 3 {
+                print("ERROR: Action.apply() on @lost command with mismatching arity -> '%'" % this.command_text)
+                return false
+            }
+            
+            blueprint_name StringView = tokens.get(1)
+            rigged_network_id StringView = tokens.get(2)
+            state.addTrap(gamedata.deck.getCardBlueprint(blueprint_name), rigged_network_id.toUlong())
         } else {
             print("WARNING: Unrecognized gameplay action '%'" % this.command_text)
             return false

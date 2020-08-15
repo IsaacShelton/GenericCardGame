@@ -27,7 +27,7 @@ func addScene(this *<Scene> List, id int, name *ubyte, handler *$SceneHandler){
     scene.setup = func null &setup(*$SceneHandler) as ptr as func(ptr) void
     scene.enter = func null &enter(*$SceneHandler) as ptr as func(ptr) void
     scene.exit = func null &exit(*$SceneHandler) as ptr as func(ptr) void
-    scene.defer_func = func null &__defer__(*$SceneHandler) as ptr as func(ptr) void
+    scene.defer_func = func &__defer__(*$SceneHandler) as ptr as func(ptr) void
     scene.step = func null &step(*$SceneHandler) as ptr as func(ptr) void
     scene.draw = func null &draw(*$SceneHandler) as ptr as func(ptr) void
     scene.click = func null &click(*$SceneHandler, float, float, int) as ptr as func(ptr, float, float, int) void

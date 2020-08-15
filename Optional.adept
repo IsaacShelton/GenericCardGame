@@ -8,7 +8,7 @@ verbatim func __defer__(this *<$T> Optional) {
 }
 
 func set(this *<$T> Optional, value POD $T) {
-    if this.has, this.rid()
+    this.rid()
     this.value = POD value
     this.has = true
 }
@@ -28,6 +28,7 @@ func getPointer(this *<$T> Optional) *$T {
 }
 
 func rid(this *<$T> Optional) {
+    unless this.has, return
     this.__defer__()
     this.has = false
 }

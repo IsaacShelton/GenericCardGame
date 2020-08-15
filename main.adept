@@ -35,6 +35,7 @@ import 'NetworkInterpreter.adept'
 import 'RoomListing.adept'
 import 'GameData.adept'
 import 'Textures.adept'
+import 'Models.adept'
 import 'Scene.adept'
 import 'Text.adept'
 import 'where.adept'
@@ -79,6 +80,7 @@ func onSetup {
     signal(SIGPIPE, SIG_IGN)
     audioInit()
     textures.load()
+    models.load()
     settings.load()
     loader.create()
 }
@@ -89,6 +91,7 @@ func onExit {
     
     textures.unload()
     dynamic_textures.unload()
+    models.unload()
     gamedata.exit()
     sfx.unload()
     soundtrack.stop()
@@ -142,8 +145,6 @@ func onDraw {
     captClearColor(captColor(0.75f, 0.75f, 0.75f))
     captDrawTexture(textures.background, 0.0f, 0.0f, captViewWidth(), captViewHeight())
     
-    if loader.isComplete(), gamedata.draw()
-    else {
-        loader.drawLoadingAnimation()
-    }
+    if   loader.isComplete(), gamedata.draw()
+    else loader.drawLoadingAnimation()
 }

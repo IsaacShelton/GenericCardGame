@@ -19,6 +19,13 @@ struct Offense (kind OffenseKind) {
         }
         return null
     }
+    
+    func isGoodAgainst(defense Defense) bool {
+        if this.kind == OffenseKind::SHARP && defense.kind == DefenseKind::FLESH,    return true
+        if this.kind == OffenseKind::BLUNT && defense.kind == DefenseKind::SHIELDED, return true
+        if this.kind == OffenseKind::MAGIC && defense.kind == DefenseKind::SPECTRAL, return true
+        return false
+    }
 }
 
 func offense(kind OffenseKind) Offense {

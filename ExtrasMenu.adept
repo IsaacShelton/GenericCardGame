@@ -38,6 +38,11 @@ struct ExtrasMenu (
         this.prelist.clear()
     }
     
+    func __defer__ {
+        // Due to the compiler not yet automatically generating __defer__ functions
+        // via func& lookup, we have to manually ensure __defer__ is generated
+    }
+    
     func resort {
         if this.entries.has {
             this.entries.getPointer().destroy()
@@ -68,11 +73,6 @@ struct ExtrasMenu (
         this.count = gamedata.deck.blueprints.length
         
         this.selectEntry(0)
-    }
-    
-    func __defer__ {
-        // NOTE: Due to a compiler issue, we have to force a __defer__ method to
-        // be automatically generated here
     }
     
     func step {

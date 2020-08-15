@@ -1,0 +1,31 @@
+
+enum CardActivationKind (NONE, ON_ATTACK, ON_DEATH)
+
+struct CardActivation (kind CardActivationKind) {
+    func toString String {
+        switch this.kind {
+        case CardActivationKind::NONE,      return "none"
+        case CardActivationKind::ON_ATTACK, return "on-attack"
+        case CardActivationKind::ON_DEATH,  return "on-death"
+        }
+        return "none"
+    }
+    
+    func defaultUnlessSet {
+        if this.kind == CardActivationKind::NONE, return
+        this.kind = CardActivationKind::ON_ATTACK
+    }
+}
+
+func cardActivation(kind CardActivationKind) CardActivation {
+    activation POD CardActivation
+    activation.kind = kind
+    return activation
+}
+
+func cardActivation(kind_name String) CardActivation {
+    if      kind_name == "none",      return cardActivation(CardActivationKind::NONE)
+    else if kind_name == "on-attack", return cardActivation(CardActivationKind::ON_ATTACK)
+    else if kind_name == "on-death",  return cardActivation(CardActivationKind::ON_DEATH)
+    return cardActivation(CardActivationKind::NONE)
+}

@@ -55,7 +55,6 @@ struct Deck (
         attack int = 0
         offense_type Offense
         defense_type Defense
-        attributes <CardEffect> List
         ct CardTextures
         traits CardTraits
         traits.defaults()
@@ -66,7 +65,7 @@ struct Deck (
                 if      key == "creature",                kind = CardKind::CREATURE
                 else if key == "spell",                   kind = CardKind::SPELL
                 else if key == "stat",                    kind = CardKind::STAT
-                else if key == "trap",                    kind = CardKind::TRAP
+                else if key == "trap",                    kind = CardKind::TRAP; traits.activation.defaultUnlessSet()
                 else if key == "developer",               traits.developer = true
                 else if key == "on-fire",                 traits.on_fire = true
                 else if key == "fire-resistant",          traits.fire_resistant = true
@@ -84,6 +83,7 @@ struct Deck (
                 else if key == "bleeding",                traits.bleeding = true
                 else if key == "unhealable",              traits.unhealable = true
                 else if key == "biting",                  traits.biting = true
+                else if key == "eternal-fire",            traits.eternal_fire = true
                 
                 else if key == "requires-target",         traits.requires_target = true
                 else if key == "insta-kill",              traits.insta_kill = true
@@ -91,8 +91,11 @@ struct Deck (
                 else if key == "applies-rage",            traits.applies_rage = true
                 else if key == "urgent",                  traits.urgent = true
                 else if key == "transform",               traits.transform = true
+                else if key == "gives-eternal-fire",      traits.gives_eternal_fire = true
                 
                 else if key == "ignore-effect-damage",    traits.ignore_effect_damage = true
+                
+                else if key == "reflect",                 traits.reflect = true
                 else {
                     print("WARNING: Unrecognized card marker trait '%'" % key)
                 }
@@ -154,6 +157,8 @@ struct Deck (
                 defense_type = defense(new_defense)
             } else if isStringDetail(it, "usage", def new_usage StringView) {
                 traits.usage = cardUsage(new_usage)
+            } else if isStringDetail(it, "activation", def new_activation StringView) {
+                traits.activation = cardActivation(new_activation)
             } else if isIntDetail(it, &key, undef int_value int) {
                 dest *int = null
                 if      key == "cost",               dest = &cost
@@ -169,6 +174,7 @@ struct Deck (
                 else if key == "recycle",            dest = &traits.recycle
                 else if key == "burning",            dest = &traits.burning
                 else if key == "flimsy",             dest = &traits.flimsy
+                else if key == "attacks",            dest = &traits.attacks
                 
                 else if key == "applies-shield",      dest = &traits.applies_shield
                 else if key == "draw-immediately",    dest = &traits.draw_immediately
@@ -183,6 +189,8 @@ struct Deck (
                 else if key == "draw-cost-reduction", dest = &traits.draw_cost_reduction
                 else if key == "applies-resistance",  dest = &traits.applies_resistance
                 else if key == "gives-mana",          dest = &traits.gives_mana
+                
+                else if key == "expires",             dest = &traits.expires
                 
                 if dest {
                     *dest = int_value
@@ -200,7 +208,7 @@ struct Deck (
         // Force valid texture if something went wrong
         ct.forceValid()
         
-        unless this.blueprints.addBlueprint(name, title, description, kind, cost, hp, attack, offense_type, defense_type, attributes, ct, traits),
+        unless this.blueprints.addBlueprint(name, title, description, kind, cost, hp, attack, offense_type, defense_type, ct, traits),
             return false
         
         if kind == CardKind::CREATURE,

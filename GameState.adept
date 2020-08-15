@@ -7,6 +7,7 @@ import 'CardStatus.adept'
 import 'SpellOrder.adept'
 import 'AttackOrder.adept'
 import 'Player.adept'
+import 'TrapCardInstance.adept'
 
 struct GameState (
     phase Phase,
@@ -15,7 +16,8 @@ struct GameState (
     global_dancing int,
     players <Player> List,
     spell_orders <SpellOrder> List,
-    attack_orders <AttackOrder> List
+    attack_orders <AttackOrder> List,
+    trap_cards <TrapCardInstance> List
 ) {
     func init(player_names <String> List) {
         this.phase = phase(PhaseKind::SPAWN)
@@ -123,10 +125,9 @@ struct GameState (
     }
     
     func distributeMana {
-        if gamedata.gamemode.exclusive_heart_mana_bonus {
-            each Player in this.players, it.mana = this.global_mana + (it.hearts <= it.starting_hearts ? it.starting_hearts - it.hearts : 0)
-        } else {
-            each Player in this.players, it.mana = this.global_mana
+        each Player in this.players {
+            it.mana = this.global_mana + it.future_extra_mana + (gamedata.gamemode.exclusive_heart_mana_bonus && it.hearts <= it.starting_hearts ? it.starting_hearts - it.hearts : 0)
+            it.future_extra_mana = 0
         }
     }
     
@@ -137,7 +138,7 @@ struct GameState (
         }
     }
     
-    func doAttack(aggressor *CardInstance, inout victim_var **CardInstance, out particles *<*CardParticle> List, randomness int) successful {
+    func doAttack(aggressor *CardInstance, inout victim_var **CardInstance, out particles *<*CardParticle> List, randomness int, is_counter_attack bool) successful {
         used_shield bool = false
         victim *CardInstance = *victim_var
         attack int = aggressor.attack
@@ -145,6 +146,7 @@ struct GameState (
         victim_owner *Player = this.findOwner(victim.network_id)
         
         // dancing => You can't attack while dancing!
+        // (Shouldn't be necessary, but good to check)
         if aggressor.traits.dancing, return false
         
         // random-victim
@@ -180,6 +182,17 @@ struct GameState (
             
             attack = cast int (attack as double * 1.5)
         }
+        
+        // Trigger 'on-attack' traps
+        should_reflect bool = false
+        each TrapCardInstance in this.trap_cards {
+            if it.rigged == victim.network_id && it.traits.activation.kind == CardActivationKind::ON_ATTACK {
+                this.doTrap(&it, aggressor, particles, &should_reflect)
+                this.trap_cards.remove(idx--)
+            }
+        }
+        
+        victim_was_dead bool = victim.isDead()
         
         // can-heal
         if aggressor.traits.can_heal && aggressor_owner == victim_owner {
@@ -240,18 +253,36 @@ struct GameState (
             return false
         }
         
+        final_damage_dealt int = 0
+        
         if victim.traits.endure > 0 && victim.hp > 0 && attack >= victim.hp && victim.hp > victim.traits.endure {
             // Endure
-            victim.hp = victim.traits.endure
+            final_damage_dealt = victim.hp - victim.traits.endure
         } else {
             // Regular damage
-            victim.hp -= attack
+            final_damage_dealt = attack
+        }
+        
+        // Reflect damage if trap activated reflect
+        if should_reflect {
+            aggressor.hp = max(aggressor.hp - final_damage_dealt, 0)
+        } else {
+            victim.hp -= final_damage_dealt
+            
+            // Add super meter bonus if proper offense for defense
+            if aggressor.offense.isGoodAgainst(victim.defense),
+                aggressor_owner.super = clamp(aggressor_owner.super + 5, 0, 100)
         }
         
         // Spread fire to victim if should
         if aggressor.traits.spreads_fire && !victim.traits.fire_resistant {
             if randomness < aggressor.traits.spreads_fire,
                 victim.traits.on_fire = true
+        }
+        
+        // Spread eternal fire to victim if applicable
+        if aggressor.traits.eternal_fire {
+            victim.traits.eternal_fire = true
         }
         
         // Cut/Bite victim if should
@@ -269,11 +300,21 @@ struct GameState (
             aggressor.traits.bleeding = true
         }
         
-        if victim.traits.counter_attack && !aggressor.traits.ignores_counter_attack {
+        // Trigger 'on-death' traps
+        if victim.isDead() && !victim_was_dead, each TrapCardInstance in this.trap_cards {
+            if it.rigged == victim.network_id && it.traits.activation.kind == CardActivationKind::ON_DEATH {
+                this.doTrap(&it, aggressor, particles, null)
+                this.trap_cards.remove(idx--)
+            }
+        }
+        
+        // Schedule counter attack
+        if victim.traits.counter_attack && !aggressor.traits.ignores_counter_attack && !is_counter_attack {
             this.attack_orders.prepend(attackOrder(victim.network_id, aggressor.network_id, (randomness + 37) % 100, true))
         }
         
-        return true
+        // Succeeded if attack wasn't reflected
+        return should_reflect == false
     }
     
     func doSpell(player_id PlayerID, blueprint *CardBlueprint, victim *CardInstance, out particles *<*CardParticle> List, randomness int) successful {
@@ -317,6 +358,11 @@ struct GameState (
             victim.traits.on_fire = true
         }
         
+        // gives-eternal-fire (for spells)
+        if blueprint.traits.gives_eternal_fire && victim {
+            victim.traits.eternal_fire = true
+        }
+        
         // draw-immediately (for spells)
         if blueprint.traits.draw_immediately {
             if player, player.drawCardsFromDeck(blueprint.traits.draw_immediately, player.name == gamedata.player_name)
@@ -328,6 +374,11 @@ struct GameState (
             victim.traits.unhealable = true
             
             if particles, particles.addSmite(victim.network_id)
+        }
+        
+        // attack (for spells)
+        if blueprint.attack && victim {
+            victim.hp -= blueprint.attack
         }
         
         // everybody-dance-now (for spells)
@@ -350,7 +401,7 @@ struct GameState (
         // steal-random (for spells)
         if blueprint.traits.steal_random && is_me {
             repeat static blueprint.traits.steal_random,
-                gamedata.manager.writeOutgoing(gamedata.player_name + "@steal ~\n")
+                gamedata.manager.writeOutgoing(gamedata.player_name + "@steal `\n")
         }
         
         // super (for spells)
@@ -358,9 +409,11 @@ struct GameState (
             player.super = clamp(player.super + blueprint.traits.super, 0, 100)
         }
         
-        // thrift (for spells)
+        // Ignore thrift (for spells) for the playing player because we will
+        // have it apply immediately as the player plays the card
+        // For good measure, we'll track it on other players though
         if blueprint.traits.thrift {
-            player.thrift += blueprint.traits.thrift
+            unless is_me, player.thrift += blueprint.traits.thrift
         }
         
         // Ignore gives-mana (for spells) for the playing player because we will
@@ -373,17 +426,53 @@ struct GameState (
         return true
     }
     
+    func addTrap(blueprint *CardBlueprint, rigged CardNetworkID) {
+        this.trap_cards.add(trapCardInstance(blueprint, rigged))
+    }
+    
+    func doTrap(trap *TrapCardInstance, aggressor *CardInstance, out particles *<*CardParticle> List, out should_reflect *bool) {
+        rigged_card *CardInstance = this.getCardOnBoardByNetworkId(trap.rigged)
+        
+        // Card specific activation animations
+        if trap.name == "floor_spikes" {
+            particles.addFloorSpikes(trap.rigged)
+        } else if trap.name == "reflective_shield" {
+            particles.addReflectiveShield(trap.rigged)
+        } else if trap.name == "party_popper" {
+            particles.addPartyPopper(trap.rigged)
+        }
+        
+        // Trap activation message
+        particles.addTrap(trap.rigged)
+        
+        // attack (for traps)
+        if trap.attack {
+            aggressor.hp = max(aggressor.hp - trap.attack, 0)
+        }
+        
+        // reflect (for traps)
+        if trap.traits.reflect {
+            if should_reflect != null, *should_reflect = true
+        }
+        
+        // gives-mana (for traps)
+        if trap.traits.gives_mana {
+            trap_owner *Player = this.findOwner(trap.rigged)
+            if trap_owner, trap_owner.future_extra_mana += trap.traits.gives_mana
+        }
+    }
+    
     func applyPassiveEffects(out particles *<*CardParticle> List) {
         each player Player in this.players {
             each CardInstance in player.board {
-                // (on-fire || burning) && !fire-resistant       [20% damage or 1]
-                if (it.traits.on_fire || it.traits.burning) && !it.traits.fire_resistant {
+                // eternal-fire || ((on-fire || burning) && !fire-resistant)  [20% damage or 1]
+                if it.traits.eternal_fire || ((it.traits.on_fire || it.traits.burning) && !it.traits.fire_resistant) {
                     unless player.stat_card.has && player.stat_card.getPointer().traits.ignore_effect_damage {
                         it.hp -= (it.max_hp as float / 5.0f < 1.0f ? 1 : floorf(it.max_hp as float / 5.0f) as int)
                     }
                 }
                 
-                // bleeding                                      [33% damage or 1]
+                // bleeding                                                   [33% damage or 1]
                 if it.traits.bleeding {
                     unless player.stat_card.has && player.stat_card.getPointer().traits.ignore_effect_damage {
                         it.hp -= (it.max_hp as float / 3.0f < 1.0f ? 1 : floorf(it.max_hp as float / 3.0f) as int)
@@ -417,6 +506,13 @@ struct GameState (
         }
     }
     
+    func expireOldTraps {
+        each TrapCardInstance in this.trap_cards {
+            if it.traits.expires != 0 && --it.traits.expires == 0,
+                this.trap_cards.remove(idx--)
+        }
+    }
+    
     func getCardStatuses <CardStatus> List {
         list <CardStatus> List
         each player Player in this.players, player.addCardStatusesToList(&list)
@@ -426,13 +522,22 @@ struct GameState (
     func removeDeadCards(lose_a_heart_if_none_left bool) {
         this_player *Player = this.getThisPlayer()
         
+        removed_network_ids <CardNetworkID> List
+        
         each player Player in this.players {
-            player.removeDeadCards(&player == this_player)
+            player.removeDeadCards(&player == this_player, &removed_network_ids)
             
             // Lose a heart if no creatures left on board
             if lose_a_heart_if_none_left && player.board.length == 0 {
                 player.hearts--
                 unless gamedata.gamemode.exclusive_heart_mana_bonus, this.global_mana++
+            }
+        }
+        
+        // Delete trap cards that were attached to cards
+        each removed_id CardNetworkID in static removed_network_ids {
+            each TrapCardInstance in this.trap_cards {
+                if it.rigged == removed_id, this.trap_cards.remove(idx--)
             }
         }
     }
@@ -475,5 +580,11 @@ struct GameState (
                 if !card.traits.on_fire && !card.traits.fire_resistant && card.traits.burning < amount, card.traits.burning = amount
             }
         }
+    }
+    
+    func isGameOver bool {
+        alive int = 0
+        each Player in static this.players, if it.hearts > 0, alive++
+        return alive <= 1
     }
 }

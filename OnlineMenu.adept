@@ -7,17 +7,17 @@ struct OnlineMenu (
 ) {
     func setup {}
     
-    func __defer__ {
-        // NOTE: Due to a compiler issue, we have to force a __defer__ method to
-        // be automatically generated here
-    }
-    
     func enter {
         gamedata.interpreter.setMonitorListings(true)
     }
     
     func exit {
         gamedata.interpreter.setMonitorListings(false)
+    }
+    
+    func __defer__ {
+        // Due to the compiler not yet automatically generating __defer__ functions
+        // via func& lookup, we have to manually ensure __defer__ is generated
     }
     
     func step {
@@ -123,7 +123,7 @@ struct OnlineMenu (
     
     func joinRoom(name String) {
         gamedata.interpreter.clearRoomMovements()
-        gamedata.interpreter.clearActions()
+        gamedata.interpreter.clearAgents()
         gamedata.interpreter.ignoreNextJoinMessageFrom(gamedata.player_name)
         gamedata.manager.writeOutgoing("$join " + name + "\n")
         gamedata.manager.writeOutgoing("$lobby\n")

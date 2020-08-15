@@ -24,7 +24,7 @@ struct Text (model CaptModel, has bool) {
             printf('INTERNAL ERROR: Text.destroy() called when nothing preset\n')
         }
         
-        this.model.free()
+        this.model.destroy()
         this.has = false
     }
 }

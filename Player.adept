@@ -11,7 +11,8 @@ struct Player (
     board <CardInstance> List,
     stat_card <CardInstance> Optional,
     done, sent_done bool,
-    super, thrift int
+    super, thrift int,
+    future_extra_mana int
 ) {
     func drawCardFromDeck(blueprint_name String) {
         // Assumes that this player is user's player
@@ -30,7 +31,7 @@ struct Player (
             
             #if enable_debugging_hotkeys
             if glfwGetKey(_captain_window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS {
-                card = gamedata.deck.getCardByName(glfwGetKey(_captain_window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS ? "sleight_of_hand" : "sleight_of_hand")
+                card = gamedata.deck.getCardByName(glfwGetKey(_captain_window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS ? "sword_master" : "blue_fireball")
             }
             #end
             
@@ -80,7 +81,7 @@ struct Player (
         }
         
         this.board.insert(destination, cardInstance(blueprint))
-        
+    
         card *CardInstance = this.board.getPointer(destination)
         card.assignNetworkID(unique_network_id)
         
@@ -105,9 +106,14 @@ struct Player (
             card.traits.dancing = global_dancing
         }
         
-        // Don't keep track for supply of ourselves here, because it depends on the network
+        // Don't keep track of supply for ourselves here, because it depends on the network
         unless is_me || blueprint.traits.separation {
             this.supply++
+        }
+        
+        // Don't keep track of mana for ourselves here, because it depends on the network
+        unless is_me {
+            this.mana -= this.getDiscountedCardCost(blueprint.cost)
         }
     }
     
@@ -120,13 +126,14 @@ struct Player (
         each CardInstance in this.board, list_to_add_to.add(cardStatus(&it))
     }
     
-    func removeDeadCards(is_me bool) {
+    func removeDeadCards(is_me bool, out removed_network_ids *<CardNetworkID> List) {
         // NOTE: 'is_me' is whether this player is the "actual" player
         each CardInstance in this.board, if it.isDead() {
             unless it.traits.separation, this.supply--
             
             if it.traits.recycle, this.drawCardsFromDeck(it.traits.recycle, is_me)
             
+            removed_network_ids.add(it.network_id)
             this.board.remove(idx--)
         }
     }
@@ -164,5 +171,6 @@ func addPlayer(this *<Player> List, player_id PlayerID, name String) *Player {
     new_player.done = false
     new_player.super = 0
     new_player.thrift = 0
+    new_player.future_extra_mana = 0
     return new_player
 }

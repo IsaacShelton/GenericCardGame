@@ -8,7 +8,6 @@ struct CardBlueprint (
     cost, hp, attack int,
     offense Offense,
     defense Defense,
-    attributes <CardEffect> List,
     ct CardTextures,
     traits CardTraits
 ) {
@@ -22,7 +21,6 @@ struct CardBlueprint (
         blueprint.offense = POD this.offense
         blueprint.defense = POD this.defense
         blueprint.attack = this.attack
-        blueprint.attributes = this.attributes.clone()
         blueprint.ct = this.ct
         blueprint.traits = this.traits
         return blueprint
@@ -38,17 +36,19 @@ struct CardBlueprint (
         print(" attack: %" % this.attack)
         print(" offense: %" % this.offense.toString())
         print(" defense: %" % this.defense.toString())
-        print(" attributes:")
-        each CardEffect in this.attributes, print("  % = %" % it.identifier % it.value)
         print(" textures: %" % (this.ct.portrait != &textures.placeholder))
         print(" traits: %" % this.traits.toString(false))
     }
     
-    func toString String {
+    func toString(include_title_and_description bool = false) String {
         result String
-        //result.append("%" % this.name + "\n")
-        //result.append(" title %" % this.title.replace('\n'ub, " ") + "\n")
-        //result.append(" description %" % this.description.replace('\n'ub, " ") + "\n")
+        
+        if include_title_and_description {
+            result.append("%" % this.name + "\n")
+            result.append(" title %" % this.title.replace('\n'ub, " ") + "\n")
+            result.append(" description %" % this.description.replace('\n'ub, " ") + "\n")
+        }
+        
         result.append("kind %" % toString(this.kind) + "\n")
         result.append("cost %" % this.cost + "\n")
         
@@ -65,7 +65,7 @@ struct CardBlueprint (
 }
 
 func addBlueprint(this *<CardBlueprint> List, name, title, description String, kind CardKind, cost, hp, attack int,
-        offense Offense, defense Defense, attributes <CardEffect> List, ct CardTextures, traits CardTraits) successful {
+        offense Offense, defense Defense, ct CardTextures, traits CardTraits) successful {
     
     unless this.add(), return false
     
@@ -79,7 +79,6 @@ func addBlueprint(this *<CardBlueprint> List, name, title, description String, k
     blueprint.attack = attack
     blueprint.offense = POD offense
     blueprint.defense = POD defense
-    blueprint.attributes = attributes.clone()
     blueprint.ct = ct
     blueprint.traits = traits
     return true

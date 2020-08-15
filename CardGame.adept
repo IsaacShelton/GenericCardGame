@@ -11,12 +11,13 @@ import 'AttackOrder.adept'
 import 'CardAnimation.adept'
 import 'CardParticle.adept'
 
+HUGE_CARD_SCALE == 2.0f
 CARD_WIDTH   == 64.0f
 CARD_HEIGHT  == 96.0f
 CARD_INFO_WIDTH  == 12.8f
 CARD_INFO_HEIGHT == 96.0f
-MANA_WIDTH   == 32.0f
-MANA_HEIGHT  == 32.0f
+MANA_WIDTH   == 24.0f
+MANA_HEIGHT  == 24.0f
 HEART_WIDTH  == 24.0f
 HEART_HEIGHT == 24.0f
 CARD_PADDING == 16.0f
@@ -28,6 +29,8 @@ MANA_XADVANCE == MANA_WIDTH + MANA_PADDING
 MANA_YADVANCE == MANA_HEIGHT + MANA_PADDING
 HEART_XADVANCE == HEART_WIDTH + HEART_PADDING
 HEART_YADVANCE == HEART_HEIGHT + HEART_PADDING
+CARD_GAME_VERTICAL_OFFSET == -48.0f
+PLAYING_SPELL_ORDER_DURATION == 2.0f
 
 CARD_PICTURE_Y_OFFSET ==  50.0f / 300.0f * CARD_HEIGHT
 CARD_PICTURE_HEIGHT   == 100.0f / 300.0f * CARD_HEIGHT
@@ -51,23 +54,33 @@ struct CardGame (
     card_animations <*CardAnimation> List,
     scheduled_animations <ScheduledCardAnimation> List,
     playing_attack_order <AttackOrder> Optional,
+    playing_spell_order <SpellOrder> Optional,
+    playing_spell_order_start double,
     animated_attack_line_x, animated_attack_line_y float, // 0.0f == starting card position
     card_statuses <CardStatus> List,
     particles <*CardParticle> List,
     playing_wizards_aid_animation bool,
-    wizards_aid_animation_beginning double
+    wizards_aid_animation_beginning double,
+    disco_opacity float
 ) {
-    func setup {}
+    func setup {
+        // UNUSED: Use enter(*CardGame) instead!
+    }
     
     func __defer__ {
         // NOTE: Due to a compiler issue, we have to force a __defer__ method to
         // be automatically generated here
         
         this.clearAllAnimations()
+        this.clearParticles()
     }
     
     func enter {
-        this.dragging_card = 0
+        // Reset structure to zero initialized state
+        this.__defer__()
+        memset(this, 0, sizeof CardGame)
+        
+        // Setup non-zero values
         this.show_end_turn_button = true
         this.show_draw_card_button = true
         this.playing_wizards_aid_animation = false
@@ -77,10 +90,17 @@ struct CardGame (
         
         this.state.init(gamedata.player_names)
         gamedata.interpreter.clearRoomMovements()
+        
+        this.disco_opacity = 0.0f
     }
+    
     
     func exit {
         this.alert.rid()
+        this.playing_attack_order.rid()
+        this.playing_spell_order.rid()
+        this.clearAllAnimations()
+        this.clearParticles()
     }
     
     func step {
@@ -110,24 +130,31 @@ struct CardGame (
         // Process actions received from server
         gamedata.interpreter.updatedActions(func &handleActionsCallback(*CardGame, *Action) as ptr as func(ptr, *Action) successful, this)
         
+        ready_to_advance_phase bool = !this.playing_spell_order.has && this.state.spell_orders.length == 0
+        if this.state.willAdvancePhase() && this.state.spell_orders.length != 0 {
+            // Play spell card animations
+            unless this.playing_spell_order.has {
+                spell_order SpellOrder = this.state.spell_orders.get(0)
+                this.state.spell_orders.remove(0)
+                
+                victim *CardInstance = this.state.getCardOnBoardByNetworkId(spell_order.victim)
+                this.state.doSpell(spell_order.player_id, spell_order.blueprint, victim, &this.particles, spell_order.randomness)
+                this.card_statuses = this.state.getCardStatuses()
+                
+                player *Player = this.state.getPlayer(spell_order.player_id)
+                if player && player != this.state.getThisPlayer(), player.hand.reduce(1)
+                
+                this.playing_spell_order.set(spell_order)
+                this.playing_spell_order_start = glfwGetTime()
+            }
+        }
+        
         // Advance the game phase if ready
-        if this.state.shouldAdvancePhase() {
+        if ready_to_advance_phase && this.state.shouldAdvancePhase() {
             this.displayAlert(this.state.phase.toString() + "!")
             
             // Remove any playing attack order
             this.playing_attack_order.rid()
-            
-            // Do spells when changing phase
-            each SpellOrder in this.state.spell_orders {
-                victim *CardInstance = this.state.getCardOnBoardByNetworkId(it.victim)
-                this.state.doSpell(it.player_id, it.blueprint, victim, &this.particles, it.randomness)
-                this.card_statuses = this.state.getCardStatuses()
-                
-                player *Player = this.state.getPlayer(it.player_id)
-                if player && player != this.state.getThisPlayer(), player.hand.reduce(1)
-                
-                this.state.spell_orders.remove(idx--)
-            }
             
             switch this.state.phase.kind {
             case PhaseKind::DRAW
@@ -175,7 +202,7 @@ struct CardGame (
             
             if aggressor && victim {
                 counter <AttackOrder> Optional
-                did_attack_work successful = this.state.doAttack(aggressor, &victim, &this.particles, order.randomness)
+                did_attack_work successful = this.state.doAttack(aggressor, &victim, &this.particles, order.randomness, order.is_counter)
                 this.playAttackAnimation(aggressor, victim, did_attack_work, is_friendly)
                 
                 this.animated_attack_line_x = 0.0f // 0.0f == starting card x
@@ -185,24 +212,31 @@ struct CardGame (
         }
         
         // Auto advance phase after battle phase
-        if this.state.phase.kind == PhaseKind::BATTLE && !this.alert.has && this.state.attack_orders.length == 0 &&
+        if this.state.phase.kind == PhaseKind::BATTLE && !this.alert.has && this.state.attack_orders.length == 0 && this.state.spell_orders.length == 0 &&
                 this.card_animations.length == 0 && this.scheduled_animations.length == 0 && !me.sent_done {
             
             // Update card statuses
             this.card_statuses = this.state.getCardStatuses()
             
             this.state.applyPassiveEffects(&this.particles)
+            this.state.expireOldTraps()
             this.state.removeDeadCards(true)
             
             // Leave the game if lost
             if me.hearts <= 0 {
-                gamedata.manager.writeOutgoing("$leave\n")
-                gamedata.is_in_room = false
+                gamedata.leaveRoom()
                 gamedata.setScene('defeat')
                 return
             }
             
             this.endTurn()
+        }
+        
+        // Update disco opacity
+        if this.state.global_dancing != 0 {
+            this.disco_opacity = (this.disco_opacity * 19.0f + 0.25f) / 20.0f
+        } else if this.disco_opacity > 0.0f {
+            this.disco_opacity = this.disco_opacity < 0.0001f ? 0.0f : this.disco_opacity * 19.0f / 20.0f
         }
     }
     
@@ -312,12 +346,17 @@ struct CardGame (
                         play_command String = card.traits.urgent ? "@playnow " : "@play "
                         gamedata.manager.writeOutgoing(gamedata.player_name + play_command + card.name + " " + toString(target) + " `\n")
                         
-                        // If the spell gives mana to only this player,
-                        // then give the mana immediately, and ignore the echo when it comes
+                        // Give the mana immediately, and ignore the echo when it comes
                         // back over the network
                         if card.traits.gives_mana && me {
                             me.mana += card.traits.gives_mana
                             this.playWizardsAidAnimation()
+                        }
+                        
+                        // Apply thrift immediately, and ignore the echo when it comes
+                        // back over the network
+                        if card.traits.thrift && me {
+                            me.thrift += card.traits.thrift
                         }
                         
                         me.mana -= me.getDiscountedCardCost(card.cost)
@@ -327,6 +366,20 @@ struct CardGame (
                     gamedata.manager.writeOutgoing(gamedata.player_name + "@spawn ~ " + card.name + " rightof 0\n")
                     me.mana -= me.getDiscountedCardCost(card.cost)
                     this.state.getRidOfMyCardInHand(this.dragging_card)
+                case CardKind::TRAP
+                    // If trap
+                    target CardNetworkID = 0
+                    
+                    this.getBoardCardPositions(def network_ids <CardNetworkID> List, def card_positions <CardPosition> List)
+                    each CardPosition in card_positions, if it.intersecting(x, y), target = network_ids.get(idx); break
+                    
+                    unless target == 0 {
+                        // Play trap
+                        gamedata.manager.writeOutgoing(gamedata.player_name + "@trap " + card.name + " " + toString(target) + "\n")
+                        
+                        me.mana -= me.getDiscountedCardCost(card.cost)
+                        this.state.getRidOfMyCardInHand(this.dragging_card)
+                    }
                 }
                 
                 if me.mana < 0 {
@@ -348,7 +401,7 @@ struct CardGame (
             
             if victim_card {
                 this.attack_orders.add(attackOrder(this.with_aggressor, victim_card.network_id))
-                this.attack_orders.enforceMaxAttacks(this.with_aggressor, 1)
+                this.attack_orders.enforceMaxAttacks(this.with_aggressor, aggressor_card.traits.attacks)
             } else {
                 this.attack_orders.enforceMaxAttacks(this.with_aggressor, 0)
             }
@@ -412,8 +465,8 @@ struct CardGame (
         
         center_x float = captViewWidth() / 2.0f
         center_y float = captViewHeight() / 2.0f
-        card_vertical_distance float = MANA_HEIGHT / 2.0f + MANA_PADDING + CARD_HEIGHT / 2.0f
-        heart_vertical_distance float = card_vertical_distance + CARD_HEIGHT / 2.0f + HEART_HEIGHT / 2.0f + HEART_PADDING
+        card_vertical_distance float = 32.0f / 2.0f + MANA_PADDING + CARD_HEIGHT / 2.0f
+        //heart_vertical_distance float = card_vertical_distance + CARD_HEIGHT / 2.0f + HEART_HEIGHT / 2.0f + HEART_PADDING
         enemy_hand_vertical_distance float = center_y
         
         if this.state.phase.kind == PhaseKind::ATTACK {
@@ -494,25 +547,104 @@ struct CardGame (
             }
         }
         
-        this.drawOpponentsHand()
-        this.drawOpponentsBoard()
-        this.drawMyBoard()
-        
-        this.drawHearts(center_x, center_y - heart_vertical_distance, opponent ? opponent.hearts : 0)
-        this.drawMana(center_x, center_y, me && me.mana >= 0 ? me.mana : 0)
-        this.drawHearts(center_x, center_y + heart_vertical_distance, me ? me.hearts : 0)
-        this.drawMyHand()
-        
-        if this.alert.has,
-            this.alert.getPointer().draw()
-        
         if this.show_end_turn_button {
-            drawButton("end turn", this, func &getEndTurnButtonPosition(*CardGame, *float, *float), this.is_end_turn_button_hovered)
+            drawButton("end turn", this, func &getEndTurnButtonPosition(*CardGame, *float, *float), this.dragging_card != 0 ? false : this.is_end_turn_button_hovered)
+        } else {
+            drawButton("", this, func &getEndTurnButtonPosition(*CardGame, *float, *float), false)
         }
         
         if this.show_draw_card_button && this.show_end_turn_button {
-            drawButton("draw card", this, func &getDrawCardButtonPosition(*CardGame, *float, *float), this.is_draw_card_button_hovered)
+            drawButton("draw card", this, func &getDrawCardButtonPosition(*CardGame, *float, *float), this.dragging_card != 0 ? false : this.is_draw_card_button_hovered)
+        } else {
+            drawButton("", this, func &getDrawCardButtonPosition(*CardGame, *float, *float), false)
         }
+        
+        this.drawOpponentsBoard()
+        this.drawMyBoard()
+        
+        // Draw disco overlay
+        if this.state.global_dancing != 0 {
+            captDrawOpacity(this.disco_opacity)
+            disco_transformation Matrix4f = undef
+            disco_transformation.translateFromIdentity(captViewWidth() / 2.0f, captViewHeight() / 2.0f, 0.0f)
+            disco_transformation.rotate(PI / 2.0f * glfwGetTime(), 0.0f, 0.0f, 1.0f)
+            disco_transformation.translate(-500.0f, -500.0f, 0.0f)
+            captDrawTextureUsingModelAndTransformation(models.disco, textures.disco, disco_transformation)
+            captDrawOpacity(1.0f)
+        }
+        
+        // Calculate current hearts/mana otherwise zero
+        opponent_hearts int = opponent ? opponent.hearts : 0
+        opponent_mana int = opponent && opponent.mana >= 0 ? opponent.mana : 0
+        my_hearts int = me ? me.hearts : 0
+        my_mana int = me && me.mana >= 0 ? me.mana : 0
+        
+        // Draw mana
+        if this.alert.has, captDrawOpacity(this.alert.getPointer().getAmountAwayFromCenter())
+        this.drawMana(captViewWidth() / 2.0f, captViewHeight() / 2.0f + CARD_GAME_VERTICAL_OFFSET, my_mana)
+        captDrawOpacity(1.0f)
+        
+        // Draw friendly hearts
+        if my_hearts > 0 {
+            my_hearts_center_x float = 2.0f * HEART_PADDING + (HEART_WIDTH * my_hearts as float + HEART_PADDING * (my_hearts - 1) as float) / 2.0f
+            this.drawHearts(my_hearts_center_x, 64.0f, my_hearts)
+        }
+        
+        // Draw opponent hearts
+        if opponent_hearts > 0 {
+            opponent_hearts_center_x float = 2.0f * HEART_PADDING + (HEART_WIDTH * opponent_hearts as float + HEART_PADDING * (opponent_hearts - 1) as float) / 2.0f
+            opponent_hearts_center_x = captViewWidth() - opponent_hearts_center_x
+            this.drawHearts(opponent_hearts_center_x, 64.0f, opponent_hearts)
+        }
+        
+        // Draw play names
+        #if auto_name
+            other_player_name String = "Andy"
+            drawText("Isaac", 2.0f * HEART_PADDING, 16.0f)
+            drawText(other_player_name, captViewWidth() - 2.0f * HEART_PADDING - TEXT_14_STRIDE * other_player_name.length as float, 16.0f)
+        #else
+            other_player_name String = opponent ? opponent.name : ""
+            drawText(gamedata.player_name, 2.0f * HEART_PADDING, 16.0f)
+            drawText(other_player_name, captViewWidth() - 2.0f * HEART_PADDING - TEXT_14_STRIDE * other_player_name.length as float, 16.0f)
+        #end
+        
+        // Draw friendly super meter
+        my_super_percent float = me ? clamp(me.super as float / 100.0f, 0.0f, 1.0f) : 0.0f
+        captDrawTexture(textures.super_meter_background, 6.0f + 2.0f * HEART_PADDING, 35.0f, 256.0f, 14.0f)
+        captDrawTexture(textures.super_meter_left_cap_full, 6.0f + 2.0f * HEART_PADDING - 12.0f, 35.0f, 12.0f, 14.0f)
+        captDrawTexture(my_super_percent >= 1.0f ? textures.super_meter_right_cap_full : textures.super_meter_right_cap, 6.0f + 2.0f * HEART_PADDING + 256.0f, 35.0f, 12.0f, 14.0f)
+        captDrawTexture(textures.super_meter, 6.0f + 2.0f * HEART_PADDING, 36.0f, 256.0f * my_super_percent, 12.0f)
+        
+        // Draw opponent super meter
+        opponent_super_percent float = opponent ? clamp(opponent.super as float / 100.0f, 0.0f, 100.0f) : 0.0f
+        captDrawTexture(textures.super_meter_background, captViewWidth() - 6.0f - 256.0f - 2.0f * HEART_PADDING, 35.0f, 256.0f, 14.0f)
+        captDrawTexture(textures.super_meter, captViewWidth() - 6.0f - 256.0f * opponent_super_percent - 2.0f * HEART_PADDING, 36.0f, 256.0f * opponent_super_percent, 12.0f)
+        
+        captDrawTexture(textures.super_meter_right_cap_full, captViewWidth() - 6.0f - 2.0f * HEART_PADDING, 35.0f, 12.0f, 14.0f)
+        
+        captDrawTexture(opponent_super_percent >= 1.0f ? textures.super_meter_left_cap_full : textures.super_meter_left_cap,
+            captViewWidth() - 6.0f - 256.0f - 2.0f * HEART_PADDING - 12.0f, 35.0f, 12.0f, 14.0f)
+        
+        // Draw spell card being played
+        if this.playing_spell_order.has {
+            // Playing spell order
+            playing_spell_order_x float = calculatePlayingSpellOrderX(glfwGetTime() - this.playing_spell_order_start)
+            
+            if glfwGetTime() >= this.playing_spell_order_start + PLAYING_SPELL_ORDER_DURATION,
+                this.playing_spell_order.rid()
+            else {
+                // TODO: Don't create a card instance for every frame?
+                // Maybe it doesn't matter
+                instance CardInstance = cardInstance(this.playing_spell_order.getPointer().blueprint)
+                drawCard(&instance, playing_spell_order_x, captViewHeight() / 2.0f, HUGE_CARD_SCALE)
+            }
+        }
+        
+        // Draw friendly hand
+        this.drawMyHand()
+        
+        // Draw alert message
+        if this.alert.has, this.alert.getPointer().draw()
     }
     
     func drawMyHand {
@@ -642,7 +774,7 @@ struct CardGame (
         if board_count == 0, return
         
         x float = captViewWidth() / 2.0f - ((board_count - 1) as float * CARD_XADVANCE + CARD_WIDTH) / 2.0f + CARD_WIDTH / 2.0f
-        y float = captViewHeight() / 2.0f + (MANA_HEIGHT / 2.0f + MANA_PADDING + CARD_HEIGHT / 2.0f)
+        y float = captViewHeight() / 2.0f + (MANA_HEIGHT / 2.0f + MANA_PADDING + CARD_HEIGHT / 2.0f) + CARD_GAME_VERTICAL_OFFSET
         
         repeat board_count {
             card_positions.add(cardPosition(x, y, y, 1.0f))
@@ -658,7 +790,7 @@ struct CardGame (
         if board_count == 0, return
         
         x float = captViewWidth() / 2.0f - ((board_count - 1) as float * CARD_XADVANCE + CARD_WIDTH) / 2.0f + CARD_WIDTH / 2.0f
-        y float = captViewHeight() / 2.0f - (MANA_HEIGHT / 2.0f + MANA_PADDING + CARD_HEIGHT / 2.0f)
+        y float = captViewHeight() / 2.0f - (MANA_HEIGHT / 2.0f + MANA_PADDING + CARD_HEIGHT / 2.0f) + CARD_GAME_VERTICAL_OFFSET
         
         repeat board_count {
             card_positions.add(cardPosition(x, y, y, 1.0f))
@@ -674,6 +806,7 @@ struct CardGame (
         has_died bool = status.is_dead
         has_been_sad bool = status.is_sad
         has_been_on_fire bool = status.is_on_fire
+        has_been_on_eternal_fire bool = status.is_on_eternal_fire
         has_been_dancing bool = status.is_dancing
         has_been_bleeding bool = status.is_bleeding
         
@@ -687,7 +820,10 @@ struct CardGame (
             texture = now % 1.0 < 0.5 ? instance.ct.stand1 : instance.ct.stand2
         }
         
-        if has_been_on_fire {
+        if has_been_on_eternal_fire {
+            // Draw behind eternal flames
+            drawCentered(textures.fire_debuff_blue_hr, position.x, position.y, 2.0f * position.scale * CHARACTER_WIDTH, 2.0f * position.scale * CHARACTER_HEIGHT)
+        } else if has_been_on_fire {
             // Draw behind flames
             drawCentered(textures.fire_debuff_hr, position.x, position.y, 2.0f * position.scale * CHARACTER_WIDTH, 2.0f * position.scale * CHARACTER_HEIGHT)
         }
@@ -706,8 +842,12 @@ struct CardGame (
             drawCentered(now % 1.0 < 0.5 ? textures.bleeding1 : textures.bleeding2, position.x, position.y, position.scale * CHARACTER_WIDTH, position.scale * CHARACTER_HEIGHT)
         }
         
-        if has_been_on_fire {
-            // Draw in front fire
+        if has_been_on_eternal_fire {
+            // Draw in front for eternal fire
+            fire CaptTexture = now % 1.0 < 0.5 ? (now % 1.0 < 0.25 ? textures.blue_fire1 : textures.blue_fire2) : (now % 1.0 < 0.75 ? textures.blue_fire3 : textures.blue_fire4)
+            drawCentered(fire, position.x, position.y, position.scale * CHARACTER_WIDTH, position.scale * CHARACTER_HEIGHT)
+        } else if has_been_on_fire {
+            // Draw in front for fire
             fire CaptTexture = now % 1.0 < 0.5 ? (now % 1.0 < 0.25 ? textures.fire1 : textures.fire2) : (now % 1.0 < 0.75 ? textures.fire3 : textures.fire4)
             drawCentered(fire, position.x, position.y, position.scale * CHARACTER_WIDTH, position.scale * CHARACTER_HEIGHT)
         }
@@ -722,9 +862,9 @@ struct CardGame (
         total_width float = (count - 1) as float * MANA_XADVANCE + MANA_WIDTH
         x_offset float = 0.0f - total_width / 2.0f
         
-        if this.alert.has {
-            captDrawOpacity(this.alert.getPointer().getAmountAwayFromCenter())
-        }
+        //if this.alert.has {
+        //    captDrawOpacity(this.alert.getPointer().getAmountAwayFromCenter())
+        //}
         
         if this.playing_wizards_aid_animation {
             now double = glfwGetTime()
@@ -778,8 +918,8 @@ struct CardGame (
     }
     
     func getEndTurnButtonPosition(out x, y *float) {
-        *x = captViewWidth() - MAIN_MENU_BUTTON_WIDTH - 16.0f
-        *y = captViewHeight() - MAIN_MENU_BUTTON_HEIGHT - 16.0f
+        *x = captViewWidth() / 2.0f + 16.0f
+        *y = captViewHeight() / 2.0f + 32.0f / 2.0f + MANA_PADDING + CARD_HEIGHT / 2.0f + HEART_HEIGHT / 2.0f + HEART_PADDING - 16.0f
     }
     
     func calculateWhetherEndTurnButtonIsHovered(mouseX, mouseY float) bool {
@@ -788,8 +928,8 @@ struct CardGame (
     }
     
     func getDrawCardButtonPosition(out x, y *float) {
-        *x = captViewWidth() - MAIN_MENU_BUTTON_WIDTH - 16.0f
-        *y = captViewHeight() - MAIN_MENU_BUTTON_HEIGHT * 2.0f - 16.0f * 2.0f
+        *x = captViewWidth() / 2.0f - MAIN_MENU_BUTTON_WIDTH - 16.0f
+        *y = captViewHeight() / 2.0f + 32.0f / 2.0f + MANA_PADDING + CARD_HEIGHT / 2.0f + HEART_HEIGHT / 2.0f + HEART_PADDING - 16.0f
     }
     
     func calculateWhetherDrawCardButtonIsHovered(mouseX, mouseY float) bool {
@@ -875,7 +1015,7 @@ struct CardGame (
     
     func endTurn {
         me *Player = this.state.getThisPlayer()
-        if me == null || me.done || me.sent_done, return
+        if me == null || me.done || me.sent_done || this.state.isGameOver(), return
         
         if this.state.phase.kind == PhaseKind::ATTACK {
             // If ending attack phase, send attack orders for battlephase
@@ -905,7 +1045,7 @@ struct CardGame (
         }
         
         *x = captViewWidth() / 2.0f
-        *y = captViewHeight() / 2.0f + (MANA_HEIGHT / 2.0f + MANA_PADDING + CARD_HEIGHT / 2.0f)
+        *y = captViewHeight() / 2.0f + (MANA_HEIGHT / 2.0f + MANA_PADDING + CARD_HEIGHT / 2.0f) + CARD_GAME_VERTICAL_OFFSET
         return
     }
     
@@ -917,7 +1057,7 @@ struct CardGame (
         }
         
         *x = captViewWidth() / 2.0f
-        *y = captViewHeight() / 2.0f - (MANA_HEIGHT / 2.0f + MANA_PADDING + CARD_HEIGHT / 2.0f)
+        *y = captViewHeight() / 2.0f - (MANA_HEIGHT / 2.0f + MANA_PADDING + CARD_HEIGHT / 2.0f) + CARD_GAME_VERTICAL_OFFSET
         return
     }
     
@@ -1035,4 +1175,31 @@ func drawCard(instance *CardInstance, x_focus, y_focus, scale float) {
         hp_number_alignment float = hp_string.length < 2 ? 3.5f : 0.0f
         drawText(hp_string, left + width * 0.535 + scale * hp_number_alignment, top + height * 0.87, textures.font_black, scale * 8.0f)
     }
+}
+
+func calculatePlayingSpellOrderX(elapsed_time_since double) float {
+    start float = captViewWidth() + 2.0f * CARD_WIDTH * HUGE_CARD_SCALE
+    end float = 0.0f - 2.0f * CARD_WIDTH * HUGE_CARD_SCALE
+    
+    x float = lerpInverseSigmoid(start, end, elapsed_time_since as float / PLAYING_SPELL_ORDER_DURATION)
+    return x
+}
+
+func lerp(x1, x2 float, percent float) float {
+    return x1 + (x2 - x1) * percent
+}
+
+func lerpSigmoid(x1, x2 float, percent float, consistency float = 0.01f) float {
+    // xdiff(percent) = {x2-x1}*\frac{percent}{\sqrt{0.01+percent^{2}}}
+    return x1 + (x2 - x1) * percent / (sqrtf(consistency + percent * percent))
+}
+
+func lerpInverseSigmoid(x1, x2 float, percent float, consistency float = 300.0f) float {
+    // First half of curve: -\sqrt{-\frac{\left(\left(2x-1\right)\right)^{2}}{300\left(\left(2x-1\right)^{2}-1\right)}}+0.5
+    // Second half of curve: \sqrt{-\frac{\left(2x-1\right)^{2}}{300\left(\left(2x-1\right)^{2}-1\right)}}+0.5
+    
+    numerator_root float = 2.0f * percent - 1.0f
+    numerator float =  numerator_root * numerator_root
+    denominator float = consistency * (numerator - 1.0f)
+    return x1 + (x2 - x1) * (0.5f + (percent <= 0.5 ? -1.0f : 1.0f) * sqrtf(-1.0f * numerator / denominator))
 }

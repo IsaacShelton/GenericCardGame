@@ -1,0 +1,34 @@
+
+import 'main.adept'
+
+struct TrapCardInstance (struct CardInstance, rigged CardNetworkID) {
+    func asCardInstance *CardInstance = this as *CardInstance
+    
+    func __assign__(other TrapCardInstance) {
+        *this.asCardInstance() = *other.asCardInstance()
+        this.rigged = other.rigged
+    }
+    
+    verbatim func __defer__ {
+        this.asCardInstance().__defer__()
+    }
+}
+
+verbatim func __pass__(trap POD TrapCardInstance) TrapCardInstance {
+    *trap.asCardInstance() = __pass__(*trap.asCardInstance())
+    return trap
+}
+
+func trapCardInstance(card_instance CardInstance, rigged CardNetworkID) TrapCardInstance {
+    trap POD TrapCardInstance
+    *trap.asCardInstance() = card_instance
+    trap.rigged = rigged
+    return trap
+}
+
+func trapCardInstance(blueprint *CardBlueprint, rigged CardNetworkID) TrapCardInstance {
+    trap POD TrapCardInstance
+    *trap.asCardInstance() = cardInstance(blueprint)
+    trap.rigged = rigged
+    return trap
+}
