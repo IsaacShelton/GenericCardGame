@@ -162,7 +162,7 @@ struct CardTraits (
         if this.unhealable,              result.append("unhealable" + separator)
         if this.biting,                  result.append("biting" + separator)
         if this.eternal_fire,            result.append("eternal-fire" + separator)
-        if this.attacks != 0,            result.append("attacks %" % this.attacks + separator)
+        if this.attacks > 1,             result.append("attacks %" % this.attacks + separator)
         
         // Primarily for Spells
         if this.applies_shield,          result.append("applies-shield %" % this.applies_shield + separator)

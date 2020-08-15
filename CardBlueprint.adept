@@ -52,9 +52,13 @@ struct CardBlueprint (
         result.append("kind %" % toString(this.kind) + "\n")
         result.append("cost %" % this.cost + "\n")
         
-        if this.kind == CardKind::CREATURE {
-            result.append("hp %" % this.hp + "\n")
+        if this.kind == CardKind::CREATURE, result.append("hp %" % this.hp + "\n")
+        
+        if this.attack != 0 || this.kind == CardKind::CREATURE {
             result.append("attack %" % this.attack + "\n")
+        }
+        
+        if this.kind == CardKind::CREATURE {
             result.append("offense %" % this.offense.toString() + "\n")
             result.append("defense %" % this.defense.toString() + "\n")
         }
