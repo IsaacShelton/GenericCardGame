@@ -6,6 +6,7 @@ struct VictoryMenu (
 ) {
     func setup {}
     func enter {}
+    
     func exit {}
     
     func __defer__ {
@@ -35,7 +36,7 @@ struct VictoryMenu (
     func draw {
         drawButton("ok", this, func &getOkButtonPosition(*VictoryMenu, *float, *float), this.is_ok_button_hovered)
         
-        notice_message String = gamedata.manager.getIsOnline() ? "Victory!" : "You are Offline"
+        notice_message String = gamedata.gamekind != GameKind::ONLINE || gamedata.manager.getIsOnline() ? "Victory!" : "You are Offline"
         
         unless notice_message.empty() {
             drawTextCentered(notice_message)

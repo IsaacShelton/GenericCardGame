@@ -197,6 +197,20 @@ func addPartyPopper(this *<*CardParticle> List, network_id CardNetworkID) {
     this.spawn(newCardParticle(network_id, frames, 50.0f, 50.0f, 0.0f, durations))
 }
 
+func addExplosion(this *<*CardParticle> List, network_id CardNetworkID) {
+    frames <*CaptTexture> List
+    durations <double> List
+    
+    frames.add(&textures.transparency)
+    durations.add(0.5f)
+    frames.add(&textures.explosion1)
+    durations.add(0.25f)
+    frames.add(&textures.explosion2)
+    durations.add(0.25f)
+    
+    this.spawn(newCardParticle(network_id, frames, 50.0f, 50.0f, 0.0f, durations))
+}
+
 func spawn(this *<*CardParticle> List, particle *CardParticle) {
     // NOTE: Takes ownership of 'particle *CardParticle'
     particle.start = glfwGetTime()

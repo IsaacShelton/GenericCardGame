@@ -142,7 +142,7 @@ struct CardGame (
                 this.card_statuses = this.state.getCardStatuses()
                 
                 player *Player = this.state.getPlayer(spell_order.player_id)
-                if player && player != this.state.getThisPlayer(), player.hand.reduce(1)
+                if player && gamedata.gamekind != GameKind::VERSUS_AI && player != this.state.getThisPlayer(), player.hand.reduce(1)
                 
                 this.playing_spell_order.set(spell_order)
                 this.playing_spell_order_start = glfwGetTime()
@@ -201,7 +201,6 @@ struct CardGame (
             is_friendly bool = this.state.findOwner(order.aggressor) == this.state.findOwner(order.victim)
             
             if aggressor && victim {
-                counter <AttackOrder> Optional
                 did_attack_work successful = this.state.doAttack(aggressor, &victim, &this.particles, order.randomness, order.is_counter)
                 this.playAttackAnimation(aggressor, victim, did_attack_work, is_friendly)
                 
@@ -238,6 +237,10 @@ struct CardGame (
         } else if this.disco_opacity > 0.0f {
             this.disco_opacity = this.disco_opacity < 0.0001f ? 0.0f : this.disco_opacity * 19.0f / 20.0f
         }
+        
+        // Perform AI
+        if gamedata.gamekind == GameKind::VERSUS_AI,
+            this.processAI()
     }
     
     func click(x, y float, button int){
@@ -287,7 +290,7 @@ struct CardGame (
                 this.getMyBoardCardPositions(def card_positions <CardPosition> List)
                 each CardPosition in card_positions {
                     card *CardInstance = me.board.getPointer(idx)
-                    if !card.isDead() && !card.isDancing() && it.intersecting(x, y) {
+                    if !card.isDead() && !card.isDancing() && !card.traits.tripped && it.intersecting(x, y) {
                         this.with_aggressor = me.board.getPointer(idx).network_id
                         break
                     }
@@ -452,7 +455,7 @@ struct CardGame (
         
         captDrawTexture(textures.background_brown, 0.0f, 0.0f, captViewWidth(), captViewHeight())
         
-        notice_message String = gamedata.manager.getIsOnline() ? "" : "You are Offline"
+        notice_message String = gamedata.manager.getIsOnline() || gamedata.gamekind != GameKind::ONLINE ? "" : "You are Offline"
         
         unless notice_message.empty() {
             stride float = 14.0f / 7.0f * 6.0f
@@ -809,11 +812,22 @@ struct CardGame (
         has_been_on_eternal_fire bool = status.is_on_eternal_fire
         has_been_dancing bool = status.is_dancing
         has_been_bleeding bool = status.is_bleeding
+        has_been_tripped bool = status.is_tripped
+        h_scale float = 1.0f
         
-        if has_been_dancing {
+        if glfwGetTime() - instance.when_created <= 0.1 {
+            switch cast int (40.0 * (glfwGetTime() - instance.when_created)) {
+            case 0, texture = &textures.spawn1; h_scale = 2.0f
+            case 1, texture = &textures.spawn2; h_scale = 1.5f
+            case 2, texture = &textures.spawn3
+            default texture = &textures.spawn4
+            }
+        } else if has_been_dancing {
             texture = now % 1.0 < 0.5 ? instance.ct.stand1 : instance.ct.cheer
         } else if this.card_animations.hasCardAnimation(instance.network_id, undef animation CardAnimation) {
             texture = animation.texture
+        } else if has_been_tripped {
+            texture = now % 1.0 < 0.5 ? instance.ct.stand1 : instance.ct.die
         } else if has_been_sad {
             texture = now % 1.0 < 0.5 ? instance.ct.sad1 : instance.ct.sad2
         } else {
@@ -829,7 +843,7 @@ struct CardGame (
         }
         
         if has_died, captDrawOpacity(0.5f)
-        drawCentered(*texture, position.x, position.y, position.scale * CHARACTER_WIDTH, position.scale * CHARACTER_HEIGHT)
+        drawCentered(*texture, position.x, position.y, position.scale * CHARACTER_WIDTH, h_scale * position.scale * CHARACTER_HEIGHT)
         if has_died, captDrawOpacity(1.0f)
         
         if status.is_raging {
@@ -1014,19 +1028,23 @@ struct CardGame (
     }
     
     func endTurn {
-        me *Player = this.state.getThisPlayer()
-        if me == null || me.done || me.sent_done || this.state.isGameOver(), return
+        this.endTurn(this.state.getThisPlayer(), &this.attack_orders)
+    }
+    
+    func endTurn(player *Player, player_attack_orders *<AttackOrder> List) {
+        if player == null || player.done || player.sent_done || this.state.isGameOver(), return
         
-        if this.state.phase.kind == PhaseKind::ATTACK {
+        if this.state.phase.kind == PhaseKind::ATTACK && player_attack_orders != null {
             // If ending attack phase, send attack orders for battlephase
-            each AttackOrder in this.attack_orders,
-                gamedata.manager.writeOutgoing(gamedata.player_name + "@attack " + toString(it.aggressor) + " " + toString(it.victim) + " `\n")
+            each AttackOrder in static *player_attack_orders,
+                gamedata.manager.writeOutgoing(player.name + "@attack " + toString(it.aggressor) + " " + toString(it.victim) + " `\n")
         }
         
-        gamedata.manager.writeOutgoing(gamedata.player_name + "@end\n")
-        me.sent_done = true
+        gamedata.manager.writeOutgoing(player.name + "@end\n")
+        player.sent_done = true
         
-        this.show_end_turn_button = false
+        is_me bool = player.name == gamedata.player_name
+        if is_me, this.show_end_turn_button = false
     }
     
     func drawParticlesForCard(network_id CardNetworkID, position CardPosition) {
@@ -1123,6 +1141,110 @@ struct CardGame (
     func playWizardsAidAnimation {
         this.playing_wizards_aid_animation = true
         this.wizards_aid_animation_beginning = 0.0
+    }
+    
+    func processAI {
+        ai *Player = this.state.getPlayer(gamedata.ai_name)
+        human *Player = this.state.getThisPlayer()
+        ai_attack_orders <AttackOrder> List
+        
+        unless ai,    print("ERROR: performAI() failed to find AI player"); return
+        unless human, print("ERROR: performAI() failed to find human player"); return
+        
+        // Make AI leave the game if defeated
+        if ai.hearts <= 0 {
+            // Loopback leave message, since network is being emulated
+            gamedata.manager.writeOutgoing(gamedata.ai_name + "$leave\n")
+            return
+        }
+        
+        if !ai.sent_done && this.state.phase.kind == PhaseKind::SPAWN, repeat 2, repeat ai.hand.length {
+            possible_card *CardInstance = ai.hand.getPointer(idx)
+            
+            // Make sure we can afford to play this card
+            if ai.getDiscountedCardCost(possible_card.cost) > ai.mana && !meets(gamedata.ai_difficulty, AIDifficulty::CHEATER), continue
+            
+            cost int = ai.getDiscountedCardCost(possible_card.cost)
+            
+            // Cheater only pays card cost half of the time
+            if meets(gamedata.ai_difficulty, AIDifficulty::CHEATER) && random(2) == 0, cost = 0
+            
+            if meets(gamedata.ai_difficulty, AIDifficulty::MEDIUM) && possible_card.kind == CardKind::SPELL && random(100) < 50 {
+                // Play spell card
+                play_command String = possible_card.traits.urgent ? "@playnow " : "@play "
+                
+                target_board *<CardInstance> List = possible_card.traits.ai_usage.kind == AIUsageKind::OFFENSIVE ? &human.board : &ai.board
+                
+                if !possible_card.traits.requires_target || target_board.length != 0 {
+                    target usize = 0
+                    if possible_card.traits.requires_target, target = target_board.getRandomPointer().network_id
+                    gamedata.manager.writeOutgoing(gamedata.ai_name + play_command + possible_card.name + " " + toString(target) + " `\n")
+                    
+                    ai.mana -= cost
+                    ai.mana = max(ai.mana, 0)
+                    ai.hand.remove(idx--)
+                    
+                    // Restart from beginning of hand, since this card changes costs
+                    if possible_card.traits.thrift != 0, idx = 0
+                }
+            } else if possible_card.kind == CardKind::CREATURE && (ai.board.length < /*TODO REMOVED HARDCODED*/ 4 || meets(gamedata.ai_difficulty, AIDifficulty::CHEATER)) {
+                // Play creature card
+                gamedata.manager.writeOutgoing(gamedata.ai_name + "@spawn ~ " + possible_card.name + " rightof 0\n")
+                ai.mana -= cost
+                ai.mana = max(ai.mana, 0)
+                ai.hand.remove(idx--)
+                
+                // Only play one creature card at a time if easy mode
+                if gamedata.ai_difficulty == AIDifficulty::EASY, break
+            } else if possible_card.kind == CardKind::STAT && meets(gamedata.ai_difficulty, AIDifficulty::HARD) && random(100) < 33 && ai.board.length != 0 {
+                // Play stat cards
+                gamedata.manager.writeOutgoing(gamedata.ai_name + "@spawn ~ " + possible_card.name + " rightof 0\n")
+                ai.mana -= cost
+                ai.mana = max(ai.mana, 0)
+                ai.hand.remove(idx--)
+            } else if possible_card.kind == CardKind::TRAP && meets(gamedata.ai_difficulty, AIDifficulty::HARD) && random(100) < 33 && ai.board.length != 0 {
+                // Play trap cards
+                target CardNetworkID = ai.board.getRandomPointer().network_id
+                gamedata.manager.writeOutgoing(gamedata.ai_name + "@trap " + possible_card.name + " " + toString(target) + "\n")
+                ai.mana -= cost
+                ai.mana = max(ai.mana, 0)
+                ai.hand.remove(idx--)
+            }
+        }
+        
+        if !ai.sent_done && this.state.phase.kind == PhaseKind::ATTACK && human.board.length != 0 && this.state.global_dancing == 0 {
+            must_attack_first_id CardNetworkID = 0
+            
+            // Attack the first card that "must be attacked first"
+            each CardInstance in static human.board {
+                if it.traits.must_be_attacked_first, must_attack_first_id = it.network_id; break
+            }
+            
+            each CardInstance in ai.board, repeat static it.traits.attacks {
+                if it.isDancing() || it.isDead() || it.traits.tripped, continue
+                
+                target_network_id CardNetworkID = 0
+                
+                if must_attack_first_id {
+                    // Attack the required first target
+                    target_network_id = must_attack_first_id
+                } else {
+                    random_target *CardInstance = human.board.getRandomPointer()
+                    
+                    // Attempt to not attack a 'must be attacked last' card or a dead card
+                    repeat 10 {
+                        unless random_target.traits.must_be_attacked_last || random_target.isDead(), break
+                        random_target = human.board.getRandomPointer()
+                    }
+                    
+                    target_network_id = random_target.network_id
+                }
+                
+                ai_attack_orders.add(attackOrder(it.network_id, target_network_id, random(100), false))
+            }
+        }
+        
+        this.endTurn(ai, &ai_attack_orders)
     }
 }
 

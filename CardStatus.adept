@@ -9,7 +9,8 @@ struct CardStatus (
     is_sad,
     is_dancing,
     is_raging,
-    is_bleeding bool
+    is_bleeding,
+    is_tripped bool
 )
 
 func cardStatus(instance *CardInstance) CardStatus {
@@ -22,6 +23,7 @@ func cardStatus(instance *CardInstance) CardStatus {
     status.is_dancing = instance.isDancing()
     status.is_raging = instance.traits.rage
     status.is_bleeding = instance.traits.bleeding
+    status.is_tripped = instance.traits.tripped
     return status
 }
 
@@ -35,6 +37,7 @@ func cardStatus CardStatus {
     status.is_dancing = false
     status.is_raging = false
     status.is_bleeding = false
+    status.is_tripped = false
     return status
 }
 

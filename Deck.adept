@@ -94,8 +94,14 @@ struct Deck (
                 else if key == "gives-eternal-fire",      traits.gives_eternal_fire = true
                 
                 else if key == "ignore-effect-damage",    traits.ignore_effect_damage = true
+                else if key == "reinforced-shields",      traits.reinforced_shields = true
                 
                 else if key == "reflect",                 traits.reflect = true
+                else if key == "trip",                    traits.trip = true
+                
+                else if key == "ai-none",                 traits.ai_usage = aiUsage(AIUsageKind::NONE)
+                else if key == "ai-offensive",            traits.ai_usage = aiUsage(AIUsageKind::OFFENSIVE)
+                else if key == "ai-defensive",            traits.ai_usage = aiUsage(AIUsageKind::DEFENSIVE)
                 else {
                     print("WARNING: Unrecognized card marker trait '%'" % key)
                 }
@@ -188,8 +194,9 @@ struct Deck (
                 
                 else if key == "draw-cost-reduction", dest = &traits.draw_cost_reduction
                 else if key == "applies-resistance",  dest = &traits.applies_resistance
-                else if key == "gives-mana",          dest = &traits.gives_mana
+                else if key == "cause-burning",       dest = &traits.cause_burning
                 
+                else if key == "gives-mana",          dest = &traits.gives_mana
                 else if key == "expires",             dest = &traits.expires
                 
                 if dest {
@@ -207,6 +214,14 @@ struct Deck (
         
         // Force valid texture if something went wrong
         ct.forceValid()
+        
+        // Warn of undefined activation for traps
+        if kind == CardKind::TRAP && traits.activation.kind == CardActivationKind::NONE,
+            print("WARNING: trap '%' has no activation event" % name)
+        
+        // Warn of undefined ai usage for spells
+        if kind == CardKind::SPELL && traits.ai_usage.kind == AIUsageKind::UNDEFINED,
+            print("WARNING: spell '%' has undefined AI usage" % name)
         
         unless this.blueprints.addBlueprint(name, title, description, kind, cost, hp, attack, offense_type, defense_type, ct, traits),
             return false

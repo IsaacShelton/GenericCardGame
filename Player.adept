@@ -23,9 +23,16 @@ struct Player (
     }
     
     func drawCardsFromDeck(amount usize, is_me bool) {
-        repeat amount {
-            // Maximum hand limit of 10 cards for now
-            if this.hand.length >= 10, return
+        // Bonus card draws for cheater AI
+        bonus usize = !is_me && gamedata.gamekind == GameKind::VERSUS_AI && meets(gamedata.ai_difficulty, AIDifficulty::CHEATER) ? random(2) as int : 0
+        
+        repeat static amount + bonus {
+            unless gamedata.gamekind == GameKind::VERSUS_AI && !is_me {
+                // Hand limit doesn't apply to AI
+                
+                // Maximum hand limit of 10 cards for now
+                if this.hand.length >= 10, return
+            }
             
             card CardInstance = gamedata.deck.randomCard()
             
@@ -35,8 +42,13 @@ struct Player (
             }
             #end
             
+            faux_cards bool = !is_me && gamedata.gamekind != GameKind::VERSUS_AI
+            
+            // Draw viable creature card if no friendly cards on board and able
+            if !faux_cards && this.board.length == 0 && !this.hasPlayableCreature() && this.drawPlayableCreature(), continue
+            
             // Try to avoid redrawing cards
-            if is_me, repeat redrawing : 10 {
+            unless faux_cards, repeat redrawing : 10 {
                 each CardInstance in this.hand {
                     if it.name == card.name {
                         card = gamedata.deck.randomCard()
@@ -48,6 +60,22 @@ struct Player (
             
             this.hand.add(card)
         }
+    }
+    
+    func hasPlayableCreature bool {
+        each CardInstance in static this.hand, if it.kind == CardKind::CREATURE && this.getDiscountedCardCost(it.cost) <= this.mana, return true
+        return false
+    }
+    
+    func drawPlayableCreature successful {
+        repeat 100 {
+            blueprint *CardBlueprint = gamedata.deck.blueprints.getRandomPointer()
+            
+            if blueprint.kind == CardKind::CREATURE && this.getDiscountedCardCost(blueprint.cost) <= this.mana,
+                this.drawCardFromDeck(blueprint.name); return true
+        }
+        
+        return false
     }
     
     func spawnCard(blueprint_name String, unique_network_id CardNetworkID, relation String, related_unique_network_id CardNetworkID,
@@ -104,6 +132,11 @@ struct Player (
         // Apply global_dancing
         if global_dancing > 0 && global_dancing > card.traits.dancing {
             card.traits.dancing = global_dancing
+        }
+        
+        // reinforced-shields (via stat card)
+        if card.traits.shield == 1 && this.stat_card.has && this.stat_card.getPointer().traits.reinforced_shields {
+            card.traits.shield *= 2
         }
         
         // Don't keep track of supply for ourselves here, because it depends on the network

@@ -1,0 +1,16 @@
+
+import 'main.adept'
+
+enum AIDifficulty (EASY, MEDIUM, HARD, CHEATER)
+
+func getAIName(difficulty AIDifficulty) String {
+    switch difficulty {
+    case AIDifficulty::EASY,    return "EasyAI"
+    case AIDifficulty::MEDIUM,  return "MediumAI"
+    case AIDifficulty::HARD,    return "HardAI"
+    case AIDifficulty::CHEATER, return "CheaterAI"
+    }
+    return "UnknownAI"
+}
+
+func meets(current, minimum AIDifficulty) bool = current as usize >= minimum as usize

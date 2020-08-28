@@ -8,6 +8,8 @@ import 'sys/cstdlib.adept'
 import 'sys/cstring.adept'
 import 'sys/cerrno.adept'
 import 'posix/pthread.adept'
+import '2.3/String.adept'
+import 'random.adept'
 
 #if __windows__
     import 'windows/winsock.adept'
@@ -71,7 +73,9 @@ struct NetworkManager (
     incoming_mutex, outgoing_mutex pthread_mutex_t,
     incoming, outgoing String,
     is_online bool,
-    is_online_mutex pthread_mutex_t
+    is_online_mutex pthread_mutex_t,
+    emulate_network bool,
+    next_emulated_unique_network_id usize
 ) {
     func initialize(buffer_size usize){
         startupNetworking()
@@ -81,6 +85,8 @@ struct NetworkManager (
         pthread_mutex_init(&this.outgoing_mutex, null)
         pthread_mutex_init(&this.is_online_mutex, null)
         this.is_online = false
+        this.emulate_network = false
+        this.next_emulated_unique_network_id = 1
     }
 
     func __defer__ {
@@ -117,6 +123,13 @@ struct NetworkManager (
             if errorMessage, *errorMessage = "setsockopt(TCP_NODELAY) failed"
             return false
         }
+        
+        #if use_connect_timeout
+        timeout timeval
+        timeout.tv_sec  = #get connect_timeout_seconds
+        timeout.tv_usec = 0
+        setsockopt(this.sockfd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof timeval)
+        #end
 
         #if __windows__
         // On windows, expect 'WSAEWOULDBLOCK' back after calling connect
@@ -128,6 +141,7 @@ struct NetworkManager (
         
         if initial_connect_failed {
             if errorMessage, *errorMessage = "connect() failed"
+            this.emulate_network = true
             return false
         }
         
@@ -331,6 +345,13 @@ struct NetworkManager (
         unless string.endsWith("\n"), print("NetworkManager_warn_writeOutgoing_without_newline triggered\n>>> '%'\n" % string)
         #end
         
+        if this.emulate_network {
+            pthread_mutex_lock(&this.incoming_mutex)
+            this.incoming.append(this.emulateServerInjections(string))
+            pthread_mutex_unlock(&this.incoming_mutex)
+            return true
+        }
+        
         pthread_mutex_lock(&this.outgoing_mutex)
         this.outgoing.append(string)
         pthread_mutex_unlock(&this.outgoing_mutex)
@@ -364,5 +385,25 @@ struct NetworkManager (
         pthread_mutex_lock(&this.is_online_mutex)
         defer pthread_mutex_unlock(&this.is_online_mutex)
         return this.is_online
+    }
+    
+    func emulateServerInjections(string String) String {
+        // Inject '~' unique network id
+        until break {
+            tilda long = string.first('~'ub)
+            unless tilda >= 0, break
+            
+            string = string.range(0, tilda) + toString(this.next_emulated_unique_network_id++) + string.range(tilda + 1, string.length)
+        }
+        
+        // Inject '`' randomn 0-99
+        until break {
+            grave long = string.first('`'ub)
+            unless grave >= 0, break
+            
+            string = string.range(0, grave) + toString(random(100)) + string.range(grave + 1, string.length)
+        }
+        
+        return string.commit()
     }
 }

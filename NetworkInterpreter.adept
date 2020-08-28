@@ -204,7 +204,6 @@ struct NetworkInterpreter (
             
             // Attempt to apply actions that should be done as soon as possible
             // regardless of rescheduling
-            if agent.actions.length != 0, print("agent.action.length == %" % agent.actions.length)
             each Action in agent.actions, if it.isUrgent() {
                 if attempt_apply_action(extra_data, &it) {
                     #if NetworkInterpreter_print_fulfilled_actions

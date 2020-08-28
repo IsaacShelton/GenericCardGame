@@ -6,11 +6,13 @@ SETTINGS_FILENAME == "SETTINGS.txt"
 
 struct Settings (
     music float,
-    sfx float
+    sfx float,
+    windowed bool
 ) {
     func defaults {
         this.music = 1.0f
         this.sfx = 1.0f
+        this.windowed = false
     }
     
     func load successful {
@@ -40,6 +42,7 @@ struct Settings (
             
             if tag == "music",    this.music = rest.toFloat()
             else if tag == "sfx", this.sfx = rest.toFloat()
+            else if line == "windowed", this.windowed = true
             else print("Unrecognized setting '%'" % tag)
         }
         
@@ -58,6 +61,7 @@ struct Settings (
             
             fprintf(f, 'music %f\n', this.music as double)
             fprintf(f, 'sfx %f\n', this.sfx as double)
+            if this.windowed, fprintf(f, 'windowed\n')
         #end
         
         return true

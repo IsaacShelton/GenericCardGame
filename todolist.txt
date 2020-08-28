@@ -5,3 +5,8 @@
 + Add trapped animation
 + Add spell animation
 + Dance party background
++ Better Andy Credits Photo
++ Versus AI Easy thru AI Cheater
+- Card Shifting Animation
+- Super Meter Choose Bonus
+- More details for right click

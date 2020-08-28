@@ -20,7 +20,8 @@ struct CardInstance (
     offense Offense,
     defense Defense,
     ct CardTextures,
-    traits CardTraits
+    traits CardTraits,
+    when_created double
 ) {
     func __assign__(other CardInstance) {
         this.instance_id = other.instance_id
@@ -37,6 +38,7 @@ struct CardInstance (
         this.defense = POD other.defense
         this.ct = other.ct
         this.traits = other.traits
+        this.when_created = other.when_created
     }
     
     func clone CardInstance {
@@ -109,6 +111,7 @@ func cardInstance(blueprint *CardBlueprint) CardInstance {
     instance.defense = POD blueprint.defense
     instance.ct = blueprint.ct
     instance.traits = blueprint.traits
+    instance.when_created = glfwGetTime()
     return instance
 }
 

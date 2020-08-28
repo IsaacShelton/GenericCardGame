@@ -48,6 +48,7 @@ struct Action (command_text String) {
     }
     
     func apply(inout state *GameState, out particles *<*CardParticle> List, out should_reschedule *bool, out should_update_statuses *bool) successful {
+        unless this.command_text.contains("@end"), print(this.command_text)
         *should_reschedule = false
         *should_update_statuses = false
         
@@ -196,7 +197,17 @@ struct Action (command_text String) {
             
             randomness StringView = tokens.get(1)
             
-            unless is_me || me.hand.length == 0 {
+            if gamedata.gamekind == GameKind::VERSUS_AI && !subject_name.equals(gamedata.ai_name) {
+                // Handle AI player in versus AI games
+                ai *Player = state.getPlayer(gamedata.ai_name)
+                if ai && ai.hand.length != 0 {
+                    hand_index usize = randomness.toUlong() % ai.hand.length
+                    gamedata.manager.writeOutgoing(ai.name + "@lost " + subject.name + " " + ai.hand.getPointer(hand_index).name + "\n")
+                    ai.hand.remove(hand_index)
+                }
+            }
+            
+            if !is_me && me.hand.length != 0 {
                 hand_index usize = randomness.toUlong() % me.hand.length
                 gamedata.manager.writeOutgoing(me.name + "@lost " + subject.name + " " + me.hand.getPointer(hand_index).name + "\n")
                 me.hand.remove(hand_index)
@@ -212,7 +223,11 @@ struct Action (command_text String) {
             to_who StringView = tokens.get(1)
             which_card StringView = tokens.get(2)
             
-            if to_who == me.name {
+            if gamedata.gamekind == GameKind::VERSUS_AI && to_who == gamedata.ai_name {
+                // Handle AI player in versus AI games
+                ai *Player = state.getPlayer(gamedata.ai_name)
+                if ai, ai.drawCardFromDeck(which_card)
+            } else if to_who == me.name {
                 me.drawCardFromDeck(which_card)
             } else {
                 to_player *Player = state.getPlayer(to_who)

@@ -102,7 +102,14 @@ struct Textures (
     super_meter_right_cap,
     super_meter_left_cap_full,
     super_meter_right_cap_full,
-    super_meter_background CaptTexture
+    super_meter_background,
+    explosion1,
+    explosion2,
+    spawn1,
+    spawn2,
+    spawn3,
+    spawn4,
+    transparency CaptTexture
 ) {
     func load {
         assets_folder String = where() + "assets/"
@@ -116,8 +123,8 @@ struct Textures (
             "wizards_aid5", "wizards_aid6", "wizards_aid7", "title", "isaac", "andy", "author",
             "bleeding1", "bleeding2", "floor_spikes1", "floor_spikes2", "reflective_shield1", "reflective_shield2",
             "super_meter", "super_meter_left_cap", "super_meter_right_cap", "super_meter_left_cap_full", "super_meter_right_cap_full",
-            "super_meter_background"
-        }, 39)
+            "super_meter_background", "explosion1", "explosion2", "spawn1", "spawn2", "spawn3", "spawn4", "transparency"
+        }, 46)
         
         each *ubyte in [info.member_names, info.length] {
             member_name String = stringConstant(it)

@@ -1,7 +1,39 @@
+tripwire
+ trap
+ title Tripwire
+ description When activated, the attacker will trip, disabling them for 1 turn
+ cost 2
+ activation on-attack
+ trip
+land_mine
+ trap
+ title Land Mine
+ description When rigged creature dies, the killer takes 10 damage
+ cost 3
+ activation on-death
+ attack 10
+reinforced_shields
+ stat
+ title Reinforced Shields
+ description Creatures with one shield will earn another one when spawned
+ cost 4
+ reinforced-shields
+torch
+ stat
+ title Torch
+ description Friendly attacks cause burning for 3 turns
+ cost 2
+ cause-burning 3
+protein_powder
+ stat
+ title Protein Powder
+ description Friendly attacks do +4 damage
+ cost 3
+ applies-attack 4
 sword_master
  creature
  title Sword Master
- description Attacks twice
+ description Can attack twice
  cost 4
  hp 12
  attack 6
@@ -16,6 +48,7 @@ blue_fireball
  requires-target
  gives-eternal-fire
  attack 2
+ ai-offensive
 eyeball
  creature
  title Eyeball
@@ -36,19 +69,19 @@ reflective_shield
 party_popper
  trap
  title Party Popper
- description When rigged creature dies, gain +2 mana points for the next spawn phase
- cost 2
+ description When rigged creature dies, gain +3 mana points for the next spawn phase
+ cost 1
  activation death
- gives-mana 2
+ gives-mana 3
  activation on-death
 floor_spikes
  trap
  title Floor Spikes
- description When activated, attackers take 5 damage. Expires after 1 battle phase
+ description When activated, attackers take 5 damage. Expires after 2 battle phases
  cost 2
  attack 5
  activation on-attack
- expires 1
+ expires 2
 glass_guy
  creature
  title Glass Guy
@@ -66,6 +99,7 @@ wizard_overcharge
  description All cards are 1 mana point cheaper to play during this turn
  cost 2
  thrift 1
+ ai-none
 flying_snake
  creature
  title Flying Snake
@@ -82,6 +116,7 @@ lemon
  description Fills your super meter by 20%
  cost 2
  super 20
+ ai-none
 gild
  spell
  title Gild
@@ -89,6 +124,7 @@ gild
  cost 3
  requires-target
  applies-resistance 3
+ ai-defensive
 transform
  spell
  title Transform
@@ -96,6 +132,7 @@ transform
  cost 3
  requires-target
  transform
+ ai-defensive
 sleight_of_hand
  spell
  title Sleight of Hand
@@ -103,6 +140,7 @@ sleight_of_hand
  cost 2
  steal-random 1
  urgent
+ ai-none
 fencer
  creature
  title Fencer
@@ -120,6 +158,7 @@ red_potion
  cost 2
  requires-target
  applies-attack 5
+ ai-defensive
 toothpick
  spell
  title Toothpick
@@ -127,6 +166,7 @@ toothpick
  cost 1
  requires-target
  applies-attack 2
+ ai-defensive
 tall_guy
  creature
  title Tall Guy
@@ -140,6 +180,7 @@ rock
  creature
  title Rock
  description Must be attacked first
+ cost 2
  hp 20
  attack 0
  offense blunt
@@ -209,6 +250,7 @@ ultimate_inferno
  cost 4
  usage prebattle
  everybody-burn-now 5
+ ai-none
 skeleton
  creature
  title Skeleton
@@ -264,6 +306,7 @@ wizards_aid
  description Gain 4 mana points
  cost 2
  gives-mana 4
+ ai-none
 wizard_ward
  stat
  title Wizard Ward
@@ -278,6 +321,7 @@ spicy_soup
  usage prebattle
  requires-target
  applies-rage
+ ai-offensive
 moral_support
  stat
  title Moral Support
@@ -299,6 +343,7 @@ bag_of_chips
  requires-target
  applies-healing 10
  applies-attack 3
+ ai-defensive
 dance_party
  spell
  title Dance Party
@@ -306,6 +351,7 @@ dance_party
  cost 3
  usage spawnphase
  everybody-dance-now 2
+ ai-none
 match
  spell
  title Match
@@ -314,6 +360,7 @@ match
  usage prebattle
  requires-target
  applies-on-fire
+ ai-offensive
 lettuce_guy
  creature
  title Lettuce Guy
@@ -332,6 +379,7 @@ smite
  usage prebattle
  requires-target
  insta-kill
+ ai-offensive
 josh
  creature
  title Josh
@@ -365,10 +413,11 @@ slime
 reinforcements
  spell
  title Reinforcements
- description Draws 3 creature cards
+ description Draws 3 cards
  cost 4
  usage spawnphase
  draw-immediately 3
+ ai-none
 popup_shield
  spell
  title Pop-Up Shield
@@ -377,6 +426,7 @@ popup_shield
  usage prebattle
  applies-shield 1
  requires-target
+ ai-defensive
 on_fire_guy
  creature
  title On-Fire Guy

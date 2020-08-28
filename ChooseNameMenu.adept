@@ -72,7 +72,7 @@ struct ChooseNameMenu (
     }
     
     func finalize {
-        if this.name.empty(), return
+        if this.name.empty() || isInvalidPlayerName(this.name), return
         gamedata.player_name = this.name
         gamedata.storePlayerName(this.name)
         gamedata.manager.writeOutgoing("$name " + this.name + "\n")

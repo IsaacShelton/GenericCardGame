@@ -5,3 +5,8 @@ func contains(this *<String> Array, needle String) bool {
     each String in static *this, if it == needle, return true
     return false
 }
+
+func getRandomPointer(this *<$T> List) *$T {
+    if this.length == 0, return null
+    return this.getPointer(random(this.length))
+}

@@ -1,6 +1,7 @@
 
 import 'main.adept'
 import 'CardActivation.adept'
+import 'AIUsage.adept'
 
 struct CardTraits (
     developer bool,
@@ -37,6 +38,7 @@ struct CardTraits (
     biting bool,                 // (creature only)
     eternal_fire bool,           // (creature only)
     attacks int,                 // (creature only)
+    tripped bool,                // (creature only)
     
     applies_shield int,          // (spell only)
     draw_immediately int,        // (spell only)
@@ -45,7 +47,7 @@ struct CardTraits (
     applies_on_fire bool,        // (spell only)
     everybody_dance_now int,     // (spell only)
     applies_healing int,         // (spell and stat)
-    applies_attack int,          // (spell only)
+    applies_attack int,          // (spell and stat)
     applies_rage bool,           // (spell only)
     gives_mana int,              // (spell only)
     everybody_burn_now int,      // (spell only)
@@ -59,10 +61,15 @@ struct CardTraits (
     draw_cost_reduction int,     // (stat only)
     applies_resistance int,      // (stat only)
     ignore_effect_damage bool,   // (stat only)
+    cause_burning int,           // (stat only)
+    reinforced_shields bool,     // (stat only)
     
     activation CardActivation,   // (trap only)
     expires int,                 // (trap only)
-    reflect bool                 // (trap only)
+    reflect bool,                // (trap only)
+    trip bool,                   // (trap only)
+    
+    ai_usage AIUsage
 ) {
     func defaults {
         this.developer = false
@@ -97,6 +104,7 @@ struct CardTraits (
         this.biting = false
         this.eternal_fire = false
         this.attacks = 1
+        this.tripped = false
         
         this.applies_shield = 0
         this.draw_immediately = 0
@@ -119,13 +127,17 @@ struct CardTraits (
         this.draw_cost_reduction = 0
         this.applies_resistance = 0
         this.ignore_effect_damage = false
+        this.cause_burning = 0
+        this.reinforced_shields = false
         
         this.activation = cardActivation(CardActivationKind::NONE)
         this.expires = 0
         this.reflect = false
+        
+        this.ai_usage = aiUsage(AIUsageKind::UNDEFINED)
     }
     
-    func toString(newlines bool) String {
+    func toString(newlines bool, include_ai_hints bool = false) String {
         result String = ""
         separator String = newlines ? "\n" : " "
         
@@ -163,6 +175,7 @@ struct CardTraits (
         if this.biting,                  result.append("biting" + separator)
         if this.eternal_fire,            result.append("eternal-fire" + separator)
         if this.attacks > 1,             result.append("attacks %" % this.attacks + separator)
+        if this.tripped,                 result.append("tripped" + separator)
         
         // Primarily for Spells
         if this.applies_shield,          result.append("applies-shield %" % this.applies_shield + separator)
@@ -182,16 +195,23 @@ struct CardTraits (
         if this.super,                   result.append("super %" % this.super + separator)
         if this.thrift,                  result.append("thrift %" % this.thrift + separator)
         if this.gives_eternal_fire,      result.append("gives-eternal-fire" + separator)
+        if this.cause_burning,           result.append("cause-burning %" % this.cause_burning + separator)
         
         // Primarily for Stats
         if this.draw_cost_reduction,     result.append("draw-cost-reduction %" % this.draw_cost_reduction + separator)
         if this.applies_resistance,      result.append("applies-resistance %" % this.applies_resistance + separator)
         if this.ignore_effect_damage,    result.append("ignore-effect-damage" + separator)
+        if this.reinforced_shields,      result.append("reinforced-shields" + separator)
         
         // Primarily for Traps
         if this.activation.kind != CardActivationKind::NONE, result.append("activation %" % this.activation.toString() + separator)
         if this.expires,                 result.append("expires %" % this.expires + separator)
         if this.reflect,                 result.append("reflect" + separator)
+        if this.trip,                    result.append("trip" + separator)
+        
+        if include_ai_hints {
+            result.append("ai-" + this.ai_usage.toString())
+        }
         
         result.trim()
         return result.commit()

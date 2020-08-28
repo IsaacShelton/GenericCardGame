@@ -1,0 +1,2 @@
+
+enum GameKind (NONE, ONLINE, VERSUS_AI)

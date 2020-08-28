@@ -9,6 +9,8 @@ struct OnlineMenu (
     
     func enter {
         gamedata.interpreter.setMonitorListings(true)
+        gamedata.gamekind = GameKind::ONLINE
+        gamedata.manager.emulate_network = false
     }
     
     func exit {
@@ -127,6 +129,7 @@ struct OnlineMenu (
         gamedata.interpreter.ignoreNextJoinMessageFrom(gamedata.player_name)
         gamedata.manager.writeOutgoing("$join " + name + "\n")
         gamedata.manager.writeOutgoing("$lobby\n")
+        gamedata.manager.emulate_network = false
         gamedata.room_name = name
         gamedata.is_in_room = true
         gamedata.setScene('lobby')

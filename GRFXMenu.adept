@@ -1,0 +1,70 @@
+
+import 'main.adept'
+
+struct GRFXMenu (
+    is_back_button_hovered, is_winmode_button_hovered bool
+) {
+    func setup {
+        this.is_back_button_hovered = false
+        this.is_winmode_button_hovered = false
+    }
+    
+    func enter {}
+    func exit {}
+    
+    func __defer__ {
+        // Due to the compiler not yet automatically generating __defer__ functions
+        // via func& lookup, we have to manually ensure __defer__ is generated
+    }
+    
+    func step {
+        captMouseViewPosition(undef mouseX float, undef mouseY float)
+        this.is_back_button_hovered = isButtonHovered(this, func &getBackButtonPosition(*GRFXMenu, *float, *float), mouseX, mouseY)
+        this.is_winmode_button_hovered = isButtonHovered(this, func &getWindowModeButtonPosition(*GRFXMenu, *float, *float), mouseX, mouseY)
+    }
+    
+    func click(mouseX, mouseY float, button int){
+        unless button == 1, return
+        
+        this.is_back_button_hovered = isButtonHovered(this, func &getBackButtonPosition(*GRFXMenu, *float, *float), mouseX, mouseY)
+        if this.is_back_button_hovered {
+            gamedata.setScene('optionsmenu')
+            sfx.play(sfx.back)
+            return
+        }
+        
+        this.is_winmode_button_hovered = isButtonHovered(this, func &getWindowModeButtonPosition(*GRFXMenu, *float, *float), mouseX, mouseY)
+        if this.is_winmode_button_hovered {
+            settings.windowed!!
+            settings.store()
+            sfx.play(sfx.button)
+            return
+        }
+    }
+    
+    func char(c uint) {}
+    func key(key, scancode, action, mods int) {}
+    
+    func draw {
+        captMouseViewPosition(undef mouseX float, undef mouseY float)
+        
+        drawTextCentered("Some changes require restart to take effect", captViewWidth() / 2.0f, 16.0f)
+        
+        this.getBackButtonPosition(undef back_x float, undef back_y float)
+        this.getWindowModeButtonPosition(undef winmode_x float, undef winmode_y float)
+        drawButton("back", back_x, back_y, this.is_back_button_hovered)
+        
+        drawTextCentered("Window mode is", captViewWidth() / 2.0f, captViewHeight() / 2.0f - MAIN_MENU_BUTTON_HEIGHT / 2.0f - 16.0f)
+        drawButton(settings.windowed ? "windowed" : "fullscreen", winmode_x, winmode_y, this.is_winmode_button_hovered)
+    }
+    
+    func getWindowModeButtonPosition(out x, y *float){
+        *x = captViewWidth() / 2.0f - MAIN_MENU_BUTTON_WIDTH / 2.0f
+        *y = captViewHeight() / 2.0f - MAIN_MENU_BUTTON_HEIGHT / 2.0f
+    }
+    
+    func getBackButtonPosition(out x, y *float){
+        *x = 16.0f
+        *y = captViewHeight() - 16.0f - MAIN_MENU_BUTTON_HEIGHT
+    }
+}

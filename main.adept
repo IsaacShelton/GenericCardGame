@@ -12,6 +12,8 @@ pragma compiler_version '2.3'
 #default enable_credits_hd_hover  false
 #default auto_name                false
 #default use_mt19937              true
+#default use_connect_timeout      true
+#default connect_timeout_seconds  3
 
 #unless release
     #print "[BUILD] Using develop configuration..."
@@ -69,19 +71,28 @@ func main(argc int, argv **ubyte) {
     captOnDraw(func &onDraw)
     captMultisample(4)
     
-    #if fullscreen
-    captStart('Generic Card Game', true)
-    #else
-    captStart('Generic Card Game', 1280, 720, false)
-    #end
+    // Load settings
+    settings.load()
+    
+    if settings.windowed {
+        captStart('Generic Card Game', 1280, 720, false)
+    } else {
+        #if fullscreen
+        captStart('Generic Card Game', true)
+        #else
+        captStart('Generic Card Game', 1280, 720, false)
+        #end
+    }
 }
 
 func onSetup {
+    // Ensure constant aspect ratio for windowed mode
+    if settings.windowed, glfwSetWindowAspectRatio(_captain_window, 16, 9)
+    
     signal(SIGPIPE, SIG_IGN)
     audioInit()
     textures.load()
     models.load()
-    settings.load()
     loader.create()
 }
 

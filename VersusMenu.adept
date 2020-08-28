@@ -1,25 +1,17 @@
 
 import 'main.adept'
 
-struct OptionsMenu (
+struct VersusMenu (
     buttons <String> List,
     actions <func() void> List,
     hovered_button int,
     is_back_button_hovered bool
 ) {
     func setup {
-        this.buttons.add("profile")
-        this.buttons.add("extras")
-        this.buttons.add("grfx")
-        this.buttons.add("music")
-        this.buttons.add("sfx")
-        this.buttons.add("credits")
-        this.actions.add(func &doOptionsProfile)
-        this.actions.add(func &doOptionsExtras)
-        this.actions.add(func &doOptionsGRFX)
-        this.actions.add(func &doOptionsMusic)
-        this.actions.add(func &doOptionsSFX)
-        this.actions.add(func &doOptionsCredits)
+        this.buttons.add("AI")
+        this.buttons.add("Human")
+        this.actions.add(func &doVersusAI)
+        this.actions.add(func &doVersusHuman)
         this.hovered_button = 0 // 0 == none
         this.is_back_button_hovered = false
     }
@@ -37,19 +29,19 @@ struct OptionsMenu (
         captMouseViewPosition(undef mouseX float, undef mouseY float)
         
         repeat static this.buttons.length {
-            if isMouseOverOptionsMenuButton(mouseX, mouseY, idx as int + 1) {
+            if isMouseOverVersusMenuButton(mouseX, mouseY, idx as int + 1) {
                 this.hovered_button = idx as int + 1
             }
         }
         
-        this.is_back_button_hovered = isButtonHovered(this, func &getBackButtonPosition(*OptionsMenu, *float, *float), mouseX, mouseY)
+        this.is_back_button_hovered = isButtonHovered(this, func &getBackButtonPosition(*VersusMenu, *float, *float), mouseX, mouseY)
     }
     
     func click(mouseX, mouseY float, button int){
         unless button == 1, return
         
         repeat static this.actions.length {
-            if isMouseOverOptionsMenuButton(mouseX, mouseY, idx as int + 1) {
+            if isMouseOverVersusMenuButton(mouseX, mouseY, idx as int + 1) {
                 action func() void = this.actions.get(idx)
                 if action as ptr, action()
                 sfx.play(sfx.button)
@@ -57,7 +49,7 @@ struct OptionsMenu (
             }
         }
         
-        this.is_back_button_hovered = isButtonHovered(this, func &getBackButtonPosition(*OptionsMenu, *float, *float), mouseX, mouseY)
+        this.is_back_button_hovered = isButtonHovered(this, func &getBackButtonPosition(*VersusMenu, *float, *float), mouseX, mouseY)
         if this.is_back_button_hovered {
             gamedata.setScene('mainmenu')
             sfx.play(sfx.back)
@@ -70,7 +62,7 @@ struct OptionsMenu (
     
     func draw {
         each button_text String in this.buttons {
-            getOptionsMenuButtonPosition(idx + 1, undef button_x float, undef button_y float)
+            getVersusMenuButtonPosition(idx + 1, undef button_x float, undef button_y float)
             drawButton(button_text, button_x, button_y, this.hovered_button == idx + 1)
         }
         
@@ -84,12 +76,12 @@ struct OptionsMenu (
     }
 }
 
-func getOptionsMenuButtonPosition(button int, out x, y *float){
+func getVersusMenuButtonPosition(button int, out x, y *float){
     // NOTE: 'button' starts at 1
     
     middle_x float = captViewWidth() / 2.0f
     middle_y float = captViewHeight() / 2.0f
-    y_starting_offset float = 128.0f
+    y_starting_offset float = 64.0f - 32.0f
     y_run float = MAIN_MENU_BUTTON_HEIGHT + 16.0f
     
     x_start float = middle_x - MAIN_MENU_BUTTON_WIDTH / 2.0f
@@ -101,33 +93,17 @@ func getOptionsMenuButtonPosition(button int, out x, y *float){
     *y = y_start
 }
 
-func isMouseOverOptionsMenuButton(mouse_x, mouse_y float, button int) bool {
-    getOptionsMenuButtonPosition(button, undef x float, undef y float)
+func isMouseOverVersusMenuButton(mouse_x, mouse_y float, button int) bool {
+    getVersusMenuButtonPosition(button, undef x float, undef y float)
     
     return mouse_x > x && mouse_x < x + MAIN_MENU_BUTTON_WIDTH && 
         mouse_y > y && mouse_y < y + MAIN_MENU_BUTTON_HEIGHT
 }
 
-func doOptionsProfile {
-    gamedata.setScene('profilemenu')
+func doVersusAI {
+    gamedata.setScene('versusaimenu')
 }
 
-func doOptionsExtras {
-    gamedata.setScene('extrasmenu')
-}
-
-func doOptionsGRFX {
-    gamedata.setScene('grfxmenu')
-}
-
-func doOptionsMusic {
-    gamedata.setScene('musicmenu')
-}
-
-func doOptionsSFX {
-    gamedata.setScene('sfxmenu')
-}
-
-func doOptionsCredits {
-    gamedata.setScene('creditsmenu')
+func doVersusHuman {
+    
 }

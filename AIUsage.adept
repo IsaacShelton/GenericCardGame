@@ -1,0 +1,20 @@
+
+enum AIUsageKind (UNDEFINED, NONE, OFFENSIVE, DEFENSIVE)
+
+struct AIUsage (kind AIUsageKind) {
+    func toString String {
+        switch this.kind {
+        case AIUsageKind::UNDEFINED, return "undefined"
+        case AIUsageKind::NONE,      return "none"
+        case AIUsageKind::OFFENSIVE, return "offensive"
+        case AIUsageKind::DEFENSIVE, return "defensive"
+        }
+        return "unknown"
+    }
+}
+
+func aiUsage(kind AIUsageKind) AIUsage {
+    ai_usage POD AIUsage
+    ai_usage.kind = kind
+    return ai_usage
+}

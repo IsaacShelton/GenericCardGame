@@ -9,12 +9,16 @@ import 'VictoryMenu.adept'
 import 'DefeatMenu.adept'
 import 'FPSMonitor.adept'
 import 'GameMode.adept'
+import 'GameKind.adept'
 import 'OptionsMenu.adept'
 import 'ExtrasMenu.adept'
 import 'MusicMenu.adept'
 import 'SFXMenu.adept'
 import 'CreditsMenu.adept'
 import 'ProfileMenu.adept'
+import 'VersusMenu.adept'
+import 'VersusAIMenu.adept'
+import 'GRFXMenu.adept'
 
 struct GameData (
     scene *Scene,
@@ -27,13 +31,16 @@ struct GameData (
     interpreter NetworkInterpreter,
     error_message String,
     player_name String,
+    ai_name String,
     is_in_room bool,
     room_name String,
     next_instance_id CardInstanceID,
     deck Deck,
     fps_monitor FPSMonitor,
     player_names <String> List,
-    gamemode GameMode
+    gamemode GameMode,
+    gamekind GameKind,
+    ai_difficulty AIDifficulty
 ) {
     func init {
         this.scene = null
@@ -51,9 +58,13 @@ struct GameData (
         this.scenes.addScene(12, 'sfxmenu', new SFXMenu)
         this.scenes.addScene(13, 'creditsmenu', new CreditsMenu)
         this.scenes.addScene(14, 'profilemenu', new ProfileMenu)
+        this.scenes.addScene(15, 'versusmenu', new VersusMenu)
+        this.scenes.addScene(16, 'versusaimenu', new VersusAIMenu)
+        this.scenes.addScene(17, 'grfxmenu', new GRFXMenu)
         this.assets_folder = where() + "assets/"
         this.loadPlayerName()
         this.gamemode.defaults()
+        this.gamekind = GameKind::NONE
         
         this.next_instance_id = 1
         this.manager.initialize(1024)
@@ -62,16 +73,17 @@ struct GameData (
         unless this.manager.connect(this.override_host.empty() ? "dockysoft.com" : this.override_host, this.override_port.empty() ? 9999 : this.override_port.toInt(), &this.error_message) {
             print("Failed to connect to server")
             print(this.error_message)
-            return
         }
         
-        unless this.manager.spawnThreads(false, &this.error_message) {
+        unless !this.manager.getIsOnline() || this.manager.spawnThreads(false, &this.error_message) {
             print("Failed to spawn threads")
             print(this.error_message)
-            return
         }
         
         this.interpreter.start(&this.manager)
+        
+        // Force valid player name
+        if isInvalidPlayerName(this.player_name), this.player_name = ""
         
         if this.player_name == "" {
             #unless auto_name
@@ -81,9 +93,10 @@ struct GameData (
                 this.player_name = toString(&gamedata as int)
                 print("AUTONAME: '%'" % this.player_name)
                 
-                gamedata.manager.writeOutgoing("$name " + this.player_name + "\n")
+                if this.manager.getIsOnline(),
+                    gamedata.manager.writeOutgoing("$name " + this.player_name + "\n")
             #end
-        } else {
+        } else if this.manager.getIsOnline() {
             this.manager.writeOutgoing("$name " + this.player_name + "\n")
         }
     }
@@ -210,6 +223,23 @@ struct GameData (
             this.is_in_room = false
         }
     }
+}
+
+func isInvalidPlayerName(name String) bool {
+    if name == "EasyAI",    return true
+    if name == "MediumAI",  return true
+    if name == "HardAI",    return true
+    if name == "CheaterAI", return true
+    
+    each ubyte in static name {
+        if it >= 'A'ub && it <= 'Z'ub, continue
+        if it >= 'a'ub && it <= 'z'ub, continue
+        if it >= '0'ub && it <= '9'ub, continue
+        if it == '_'ub || it == '-'ub, continue
+        return true
+    }
+    
+    return false
 }
 
 gamedata GameData

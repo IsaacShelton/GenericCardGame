@@ -62,7 +62,9 @@ struct Scene (
     instance_size usize
 ) {
     func __defer__ {
-        if this.instance, this.callExit()
+        unless this.instance, return
+        this.callExit()
+        this.callDefer()
         delete this.instance
     }
 

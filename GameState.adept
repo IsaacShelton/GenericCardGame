@@ -204,6 +204,11 @@ struct GameState (
         // applies-resistance (via spell / creature card)
         total_resistance int = victim.traits.resistance
         
+        // applies-attack (via stat card)
+        if aggressor_owner && aggressor_owner.stat_card.has && aggressor_owner.stat_card.getPointer().traits.applies_attack {
+            attack += aggressor_owner.stat_card.getPointer().traits.applies_attack
+        }
+        
         // applies-resistance (via stat card)
         if victim_owner && victim_owner.stat_card.has && victim_owner.stat_card.getPointer().traits.applies_resistance {
             total_resistance += victim_owner.stat_card.getPointer().traits.applies_resistance
@@ -278,6 +283,11 @@ struct GameState (
         if aggressor.traits.spreads_fire && !victim.traits.fire_resistant {
             if randomness < aggressor.traits.spreads_fire,
                 victim.traits.on_fire = true
+        }
+        
+        // cause-burning (via stat card)
+        if aggressor_owner && aggressor_owner.stat_card.has && aggressor_owner.stat_card.getPointer().traits.cause_burning && !victim.traits.fire_resistant {
+            victim.traits.burning = aggressor_owner.stat_card.getPointer().traits.cause_burning
         }
         
         // Spread eternal fire to victim if applicable
@@ -440,6 +450,8 @@ struct GameState (
             particles.addReflectiveShield(trap.rigged)
         } else if trap.name == "party_popper" {
             particles.addPartyPopper(trap.rigged)
+        } else if trap.name == "land_mine" {
+            particles.addExplosion(trap.rigged)
         }
         
         // Trap activation message
@@ -459,6 +471,11 @@ struct GameState (
         if trap.traits.gives_mana {
             trap_owner *Player = this.findOwner(trap.rigged)
             if trap_owner, trap_owner.future_extra_mana += trap.traits.gives_mana
+        }
+        
+        // trip (for traps)
+        if trap.traits.trip {
+            aggressor.traits.tripped = true
         }
     }
     
