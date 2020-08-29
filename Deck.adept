@@ -84,6 +84,7 @@ struct Deck (
                 else if key == "unhealable",              traits.unhealable = true
                 else if key == "biting",                  traits.biting = true
                 else if key == "eternal-fire",            traits.eternal_fire = true
+                else if key == "ignores-attack-order",    traits.ignores_attack_order = true
                 
                 else if key == "requires-target",         traits.requires_target = true
                 else if key == "insta-kill",              traits.insta_kill = true
@@ -180,7 +181,11 @@ struct Deck (
                 else if key == "recycle",            dest = &traits.recycle
                 else if key == "burning",            dest = &traits.burning
                 else if key == "flimsy",             dest = &traits.flimsy
+                else if key == "resistance",         dest = &traits.resistance
                 else if key == "attacks",            dest = &traits.attacks
+                else if key == "refund",             dest = &traits.refund
+                else if key == "adjacent-heal",      dest = &traits.adjacent_heal
+                else if key == "revive",             dest = &traits.revive
                 
                 else if key == "applies-shield",      dest = &traits.applies_shield
                 else if key == "draw-immediately",    dest = &traits.draw_immediately

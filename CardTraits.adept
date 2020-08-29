@@ -39,6 +39,10 @@ struct CardTraits (
     eternal_fire bool,           // (creature only)
     attacks int,                 // (creature only)
     tripped bool,                // (creature only)
+    refund int,                  // (creature only)
+    adjacent_heal int,           // (creature only)
+    revive int,                  // (creature only)
+    ignores_attack_order bool,   // (creature only)
     
     applies_shield int,          // (spell only)
     draw_immediately int,        // (spell only)
@@ -105,6 +109,10 @@ struct CardTraits (
         this.eternal_fire = false
         this.attacks = 1
         this.tripped = false
+        this.refund = 0
+        this.adjacent_heal = 0
+        this.revive = 0
+        this.ignores_attack_order = false
         
         this.applies_shield = 0
         this.draw_immediately = 0
@@ -176,6 +184,10 @@ struct CardTraits (
         if this.eternal_fire,            result.append("eternal-fire" + separator)
         if this.attacks > 1,             result.append("attacks %" % this.attacks + separator)
         if this.tripped,                 result.append("tripped" + separator)
+        if this.refund,                  result.append("refund %" % this.refund + separator)
+        if this.adjacent_heal,           result.append("adjacent-heal %" % this.adjacent_heal + separator)
+        if this.revive,                  result.append("revive %" % this.revive + separator)
+        if this.ignores_attack_order,    result.append("ignores-attack-order" + separator)
         
         // Primarily for Spells
         if this.applies_shield,          result.append("applies-shield %" % this.applies_shield + separator)

@@ -261,7 +261,7 @@ struct CardGame (
             me *Player = this.state.getThisPlayer()
             
             if me && !me.done && !me.sent_done && me.mana >= me.getDrawCost() {
-                me.drawCardsFromDeck(1, true)
+                me.drawCardsFromDeck(1, true, this.state.global_mana)
                 me.mana -= me.getDrawCost()
                 gamedata.manager.writeOutgoing(gamedata.player_name + "@draw\n")
                 sfx.play(sfx.button)
@@ -1158,7 +1158,7 @@ struct CardGame (
             return
         }
         
-        if !ai.sent_done && this.state.phase.kind == PhaseKind::SPAWN, repeat 2, repeat ai.hand.length {
+        if !ai.sent_done && this.state.phase.kind == PhaseKind::SPAWN, repeat count_loop_through_hand : 2, repeat ai.hand.length {
             possible_card *CardInstance = ai.hand.getPointer(idx)
             
             // Make sure we can afford to play this card
@@ -1195,7 +1195,7 @@ struct CardGame (
                 ai.hand.remove(idx--)
                 
                 // Only play one creature card at a time if easy mode
-                if gamedata.ai_difficulty == AIDifficulty::EASY, break
+                if gamedata.ai_difficulty == AIDifficulty::EASY, break count_loop_through_hand
             } else if possible_card.kind == CardKind::STAT && meets(gamedata.ai_difficulty, AIDifficulty::HARD) && random(100) < 33 && ai.board.length != 0 {
                 // Play stat cards
                 gamedata.manager.writeOutgoing(gamedata.ai_name + "@spawn ~ " + possible_card.name + " rightof 0\n")

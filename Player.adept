@@ -22,7 +22,7 @@ struct Player (
         this.hand.add(cardInstance(blueprint))
     }
     
-    func drawCardsFromDeck(amount usize, is_me bool) {
+    func drawCardsFromDeck(amount usize, is_me bool, global_mana int) {
         // Bonus card draws for cheater AI
         bonus usize = !is_me && gamedata.gamekind == GameKind::VERSUS_AI && meets(gamedata.ai_difficulty, AIDifficulty::CHEATER) ? random(2) as int : 0
         
@@ -38,14 +38,14 @@ struct Player (
             
             #if enable_debugging_hotkeys
             if glfwGetKey(_captain_window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS {
-                card = gamedata.deck.getCardByName(glfwGetKey(_captain_window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS ? "sword_master" : "blue_fireball")
+                card = gamedata.deck.getCardByName(glfwGetKey(_captain_window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS ? "reinforced_shields" : "shield_guy")
             }
             #end
             
             faux_cards bool = !is_me && gamedata.gamekind != GameKind::VERSUS_AI
             
             // Draw viable creature card if no friendly cards on board and able
-            if !faux_cards && this.board.length == 0 && !this.hasPlayableCreature() && this.drawPlayableCreature(), continue
+            if !faux_cards && this.board.length == 0 && !this.hasPlayableCreature(global_mana) && this.drawPlayableCreature(global_mana), continue
             
             // Try to avoid redrawing cards
             unless faux_cards, repeat redrawing : 10 {
@@ -62,20 +62,24 @@ struct Player (
         }
     }
     
-    func hasPlayableCreature bool {
-        each CardInstance in static this.hand, if it.kind == CardKind::CREATURE && this.getDiscountedCardCost(it.cost) <= this.mana, return true
+    func hasPlayableCreature(global_mana int) bool {
+        each CardInstance in static this.hand, if it.kind == CardKind::CREATURE && this.getDiscountedCardCost(it.cost) <= this.getManaAllowance(global_mana), return true
         return false
     }
     
-    func drawPlayableCreature successful {
+    func drawPlayableCreature(global_mana int) successful {
         repeat 100 {
             blueprint *CardBlueprint = gamedata.deck.blueprints.getRandomPointer()
             
-            if blueprint.kind == CardKind::CREATURE && this.getDiscountedCardCost(blueprint.cost) <= this.mana,
+            if blueprint.kind == CardKind::CREATURE && this.getDiscountedCardCost(blueprint.cost) <= this.getManaAllowance(global_mana),
                 this.drawCardFromDeck(blueprint.name); return true
         }
         
         return false
+    }
+    
+    func getManaAllowance(global_mana int) int {
+        return global_mana + (gamedata.gamemode.exclusive_heart_mana_bonus && this.hearts <= this.starting_hearts ? this.starting_hearts - this.hearts : 0)
     }
     
     func spawnCard(blueprint_name String, unique_network_id CardNetworkID, relation String, related_unique_network_id CardNetworkID,
@@ -159,12 +163,21 @@ struct Player (
         each CardInstance in this.board, list_to_add_to.add(cardStatus(&it))
     }
     
-    func removeDeadCards(is_me bool, out removed_network_ids *<CardNetworkID> List) {
+    func removeDeadCards(is_me bool, global_mana int, out removed_network_ids *<CardNetworkID> List) {
         // NOTE: 'is_me' is whether this player is the "actual" player
         each CardInstance in this.board, if it.isDead() {
+            // revive <amount> (for creatures)
+            if it.traits.revive {
+                it.traits.revive--
+                it.hp = it.max_hp
+                it.traits.unhealable = false
+                continue
+            }
+            
             unless it.traits.separation, this.supply--
             
-            if it.traits.recycle, this.drawCardsFromDeck(it.traits.recycle, is_me)
+            if it.traits.recycle, this.drawCardsFromDeck(it.traits.recycle, is_me, global_mana)
+            if it.traits.refund > 0, this.future_extra_mana += it.cost
             
             removed_network_ids.add(it.network_id)
             this.board.remove(idx--)

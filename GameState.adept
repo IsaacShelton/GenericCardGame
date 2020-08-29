@@ -34,7 +34,7 @@ struct GameState (
     
     func addPlayer(name String) {
         new_player *Player = this.players.addPlayer(this.next_player_id++, name)
-        new_player.drawCardsFromDeck(3, name == gamedata.player_name)
+        new_player.drawCardsFromDeck(3, name == gamedata.player_name, this.global_mana)
     }
     
     func getPlayer(name String) *Player {
@@ -110,7 +110,7 @@ struct GameState (
         switch this.phase.kind {
         case PhaseKind::SPAWN
             this.distributeMana()
-             this.reduceTimedEffects()
+            this.reduceTimedEffects()
         }
         
         if this.phase.kind != PhaseKind::BATTLE,
@@ -126,7 +126,7 @@ struct GameState (
     
     func distributeMana {
         each Player in this.players {
-            it.mana = this.global_mana + it.future_extra_mana + (gamedata.gamemode.exclusive_heart_mana_bonus && it.hearts <= it.starting_hearts ? it.starting_hearts - it.hearts : 0)
+            it.mana = it.future_extra_mana + it.getManaAllowance(this.global_mana)
             it.future_extra_mana = 0
         }
     }
@@ -134,7 +134,7 @@ struct GameState (
     func doDrawPhase {
         each Player in this.players {
             cards_to_draw usize = it.starting_hearts < it.hearts ? 1 : it.starting_hearts - it.hearts + 1
-            it.drawCardsFromDeck(cards_to_draw, it.name == gamedata.player_name)
+            it.drawCardsFromDeck(cards_to_draw, it.name == gamedata.player_name, this.global_mana)
         }
     }
     
@@ -226,7 +226,7 @@ struct GameState (
         )
         
         // Make victim invulnerable if must be attacked last and not the last card
-        if victim.traits.must_be_attacked_last && !invulnerable_to_attack {
+        if victim.traits.must_be_attacked_last && !invulnerable_to_attack && !aggressor.traits.ignores_attack_order {
             is_last bool = true
             if victim_owner, each CardInstance in static victim_owner.board {
                 unless it.traits.must_be_attacked_last || it.isDead(), is_last = false; break
@@ -235,7 +235,7 @@ struct GameState (
         }
         
         // Make victim invulnerable if not must be attacked first and friend exists that must be attacked first
-        unless invulnerable_to_attack || victim.traits.must_be_attacked_first {
+        if !invulnerable_to_attack && !victim.traits.must_be_attacked_first && !aggressor.traits.ignores_attack_order {
             each CardInstance in static victim_owner.board {
                 if it.traits.must_be_attacked_first && !it.isDead(), invulnerable_to_attack = true; break
             }
@@ -375,7 +375,7 @@ struct GameState (
         
         // draw-immediately (for spells)
         if blueprint.traits.draw_immediately {
-            if player, player.drawCardsFromDeck(blueprint.traits.draw_immediately, player.name == gamedata.player_name)
+            if player, player.drawCardsFromDeck(blueprint.traits.draw_immediately, player.name == gamedata.player_name, this.global_mana)
         }
         
         // insta-kill (for spells)
@@ -508,6 +508,16 @@ struct GameState (
                     it.attack += it.traits.gains_attack
                     if particles, particles.addAttackBonus(it.network_id)
                 }
+                
+                // adjacent-heal <amount>
+                if it.traits.adjacent_heal != 0 && !it.isDead() {
+                    left *CardInstance = idx == 0 ? null as *CardInstance : player.board.getPointer(idx - 1)
+                    right *CardInstance = idx + 1 >= player.board.length ? null as *CardInstance : player.board.getPointer(idx + 1)
+                    
+                    // Don't allow adjacent-heal to heal "dead" creatures
+                    if  left &&  !left.isDead() &&  left.heal(it.traits.adjacent_heal), particles.addHealing(left.network_id)
+                    if right && !right.isDead() && right.heal(it.traits.adjacent_heal), particles.addHealing(right.network_id)
+                }
             }
             
             // thrift (reset)
@@ -542,7 +552,7 @@ struct GameState (
         removed_network_ids <CardNetworkID> List
         
         each player Player in this.players {
-            player.removeDeadCards(&player == this_player, &removed_network_ids)
+            player.removeDeadCards(&player == this_player, this.global_mana, &removed_network_ids)
             
             // Lose a heart if no creatures left on board
             if lose_a_heart_if_none_left && player.board.length == 0 {
@@ -575,6 +585,7 @@ struct GameState (
             each card CardInstance in static player.board {
                 if card.traits.dancing > 0, card.traits.dancing--
                 if card.traits.burning > 0, card.traits.burning--
+                if card.traits.refund  > 0, card.traits.refund--
             }
         }
     }

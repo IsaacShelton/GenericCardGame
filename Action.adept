@@ -48,7 +48,6 @@ struct Action (command_text String) {
     }
     
     func apply(inout state *GameState, out particles *<*CardParticle> List, out should_reschedule *bool, out should_update_statuses *bool) successful {
-        unless this.command_text.contains("@end"), print(this.command_text)
         *should_reschedule = false
         *should_update_statuses = false
         
@@ -185,7 +184,7 @@ struct Action (command_text String) {
             }
             
             unless is_me {
-                subject.drawCardsFromDeck(1, false)
+                subject.drawCardsFromDeck(1, false, state.global_mana)
             }
             
             return true
@@ -231,7 +230,7 @@ struct Action (command_text String) {
                 me.drawCardFromDeck(which_card)
             } else {
                 to_player *Player = state.getPlayer(to_who)
-                if to_player, to_player.drawCardsFromDeck(1, false)
+                if to_player, to_player.drawCardsFromDeck(1, false, state.global_mana)
             }
             
             return true
