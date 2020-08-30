@@ -3,12 +3,12 @@
 #default NetworkManager_dump_read_thread  false
 #default NetworkManager_dump_write_thread false
 
+import String
 import 'sys/cstdio.adept'
 import 'sys/cstdlib.adept'
 import 'sys/cstring.adept'
 import 'sys/cerrno.adept'
 import 'posix/pthread.adept'
-import '2.3/String.adept'
 import 'random.adept'
 
 #if __windows__

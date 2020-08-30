@@ -1,6 +1,6 @@
 
-import '2.3/parse.adept'
-import '2.3/string_manipulation.adept'
+import parse
+import string_util
 
 func isIntegerLike(this *String) bool {
     start *ubyte = this.array
