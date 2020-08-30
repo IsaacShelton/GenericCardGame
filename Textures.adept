@@ -80,9 +80,7 @@ struct Textures (
     left_filter_trap,
     right_filter,
     title,
-    isaac,
     isaachd,
-    andy,
     andyhd,
     author,
     bleeding1,
@@ -120,11 +118,11 @@ struct Textures (
             "font", "popup_attack1", "popup_attack2", "popup_attack3",
             "popup_shield1", "popup_shield2", "popup_shield3", "resistance",
             "wizards_aid1", "wizards_aid2", "wizards_aid3", "wizards_aid4",
-            "wizards_aid5", "wizards_aid6", "wizards_aid7", "title", "isaac", "andy", "author",
+            "wizards_aid5", "wizards_aid6", "wizards_aid7", "title", "author",
             "bleeding1", "bleeding2", "floor_spikes1", "floor_spikes2", "reflective_shield1", "reflective_shield2",
             "super_meter", "super_meter_left_cap", "super_meter_right_cap", "super_meter_left_cap_full", "super_meter_right_cap_full",
             "super_meter_background", "explosion1", "explosion2", "spawn1", "spawn2", "spawn3", "spawn4", "transparency"
-        }, 46)
+        }, 44)
         
         each *ubyte in [info.member_names, info.length] {
             member_name String = stringConstant(it)

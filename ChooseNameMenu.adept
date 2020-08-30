@@ -50,10 +50,7 @@ struct ChooseNameMenu (
         drawButton("ok", ok_button_x, ok_button_y, this.is_ok_button_hovered)
         
         stride float = 14.0f / 7.0f * 6.0f
-        
-        notice_message String = ""
-        unless gamedata.manager.getIsOnline(), notice_message = "You are Offline"
-        else notice_message = "Enter your name: " + this.name
+        notice_message String = "Enter your name: " + this.name
         
         unless notice_message.empty() {
             drawTextCentered(notice_message)
