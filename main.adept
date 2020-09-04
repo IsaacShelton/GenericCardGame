@@ -32,6 +32,7 @@ import Matrix4f
 import audio
 import random
 
+import 'sys/csignal.adept'
 import 'NetworkManager.adept'
 import 'NetworkInterpreter.adept'
 import 'RoomListing.adept'
@@ -42,7 +43,6 @@ import 'Scene.adept'
 import 'Text.adept'
 import 'where.adept'
 import 'strings.adept'
-import 'csignal.adept'
 import 'lines.adept'
 import 'SoundTrack.adept'
 import 'SoundEffects.adept'
