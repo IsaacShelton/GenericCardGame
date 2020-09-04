@@ -4,12 +4,13 @@
 #default NetworkManager_dump_write_thread false
 
 import String
+import random
+
 import 'sys/cstdio.adept'
 import 'sys/cstdlib.adept'
 import 'sys/cstring.adept'
 import 'sys/cerrno.adept'
 import 'posix/pthread.adept'
-import 'random.adept'
 
 #if __windows__
     import 'windows/winsock.adept'

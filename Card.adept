@@ -1,5 +1,4 @@
 
-import 'main.adept'
 import 'Offense.adept'
 import 'Defense.adept'
 

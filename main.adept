@@ -11,7 +11,7 @@ pragma compiler_version '2.4'
 #default enable_debugging_hotkeys false
 #default enable_credits_hd_hover  false
 #default auto_name                false
-#default use_mt19937              true
+#default random_use_mt19937       true
 #default use_connect_timeout      true
 #default connect_timeout_seconds  3
 
@@ -30,8 +30,8 @@ import captain
 import List
 import Matrix4f
 import audio
+import random
 
-import 'random.adept'
 import 'NetworkManager.adept'
 import 'NetworkInterpreter.adept'
 import 'RoomListing.adept'

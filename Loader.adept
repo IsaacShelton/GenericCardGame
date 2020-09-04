@@ -15,7 +15,7 @@ struct Loader (
     func create {
         randomSetSeed()
         
-        #unless use_mt19937
+        #unless random_use_mt19937
             rand() // For some reason, the PRNG doesn't seem to be very random
                    // unless we call rand() once before we use it. No idea why!
                    // This shouldn't be required, but whatever
