@@ -11,16 +11,17 @@ struct SoundTrack (
     wait_frames int,
     is_paused bool
 ) {
-    func init(loadedOneSongCallback func(ptr) void, user_pointer ptr) {
-        music_folder String = where() + "assets/music/"
+    func init(_loadedOneSongCallback func(ptr) void, _user_pointer ptr) {
         tracks_count usize = SOUND_TRACK_COUNT
         
         #unless no_music
+        music_folder String = where() + "assets/music/"
+        
         repeat tracks_count {
             song *Sound = this.tracks.add()
             song.load(music_folder + "%.ogg" % (idx + 1), false, 0.15f)
             
-            if loadedOneSongCallback, loadedOneSongCallback(user_pointer)
+            if _loadedOneSongCallback, _loadedOneSongCallback(_user_pointer)
         }
         #end
         
@@ -81,10 +82,10 @@ struct SoundTrack (
         #end
     }
     
-    func playTrack(track_id int) {
+    func playTrack(_track_id int) {
         #unless no_music
             if this.is_paused, return
-            this.mixer.play(this.tracks.get(track_id - 1))
+            this.mixer.play(this.tracks.get(_track_id - 1))
         #end
     }
     

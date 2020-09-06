@@ -59,9 +59,6 @@ struct LobbyMenu (
         }
     }
     
-    func char(c uint) {}
-    func key(key, scancode, action, mods int) {}
-    
     func draw {
         drawButton("leave", this, func &getLeaveButtonPosition(*LobbyMenu, *float, *float), this.is_leave_button_hovered)
         

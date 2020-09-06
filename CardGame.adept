@@ -417,14 +417,12 @@ struct CardGame (
         this.with_aggressor = 0
     }
     
-    func char(character uint) {}
-    
-    func key(key, scancode, action, mods int) {
+    func key(key, _scancode, _action, _mods int) {
         if key == GLFW_KEY_W, this.experimental_value += 0.01f
         if key == GLFW_KEY_S, this.experimental_value -= 0.01f
         
         #if CardGame_backslash_to_show_pending_actions
-        if key == GLFW_KEY_BACKSLASH && action == GLFW_PRESS {
+        if key == GLFW_KEY_BACKSLASH && _action == GLFW_PRESS {
             pthread_mutex_lock(&gamedata.interpreter.access_mutex)
             defer pthread_mutex_unlock(&gamedata.interpreter.access_mutex)
             
@@ -465,12 +463,6 @@ struct CardGame (
             text.destroy()
             return
         }
-        
-        center_x float = captViewWidth() / 2.0f
-        center_y float = captViewHeight() / 2.0f
-        card_vertical_distance float = 32.0f / 2.0f + MANA_PADDING + CARD_HEIGHT / 2.0f
-        //heart_vertical_distance float = card_vertical_distance + CARD_HEIGHT / 2.0f + HEART_HEIGHT / 2.0f + HEART_PADDING
-        enemy_hand_vertical_distance float = center_y
         
         if this.state.phase.kind == PhaseKind::ATTACK {
             captDrawOpacity(0.5f)
@@ -578,7 +570,6 @@ struct CardGame (
         
         // Calculate current hearts/mana otherwise zero
         opponent_hearts int = opponent ? opponent.hearts : 0
-        opponent_mana int = opponent && opponent.mana >= 0 ? opponent.mana : 0
         my_hearts int = me ? me.hearts : 0
         my_mana int = me && me.mana >= 0 ? me.mana : 0
         

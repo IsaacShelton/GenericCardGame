@@ -46,7 +46,7 @@ struct CreateMenu (
             this.name = this.name + c
     }
     
-    func key(key, scancode, action, mods int) {
+    func key(key, _scancode, action, _mods int) {
         if      key == GLFW_KEY_BACKSPACE && action == GLFW_PRESS || action == GLFW_REPEAT, this.name.reduce(1)
         else if key == GLFW_KEY_ENTER && action == GLFW_PRESS, sfx.play(sfx.button); this.finalize()
     }

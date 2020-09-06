@@ -197,14 +197,14 @@ struct GameData (
         #end
     }
     
-    func storePlayerName(name String) successful {
+    func storePlayerName(_name String) successful {
         #unless ignore_NAME_txt
             filename String = where() + "NAME.txt"
             filename_cstr *ubyte = filename.cstr()
             defer delete filename_cstr
             
-            name.trim()
-            name_cstr *ubyte = name.cstr()
+            _name.trim()
+            name_cstr *ubyte = _name.cstr()
             defer delete name_cstr
             
             f *FILE = fopen(filename_cstr, 'w')

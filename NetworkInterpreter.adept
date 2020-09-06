@@ -143,7 +143,7 @@ struct NetworkInterpreter (
         
         i usize = 1; while i < text.length && text.array[i] != ']'ub {
             if text.array[i] != '\''ub, printf('NetworkInterpreter.parseStringArray(): "\'" expected'); return list.commit()
-            start usize = ++i
+            
             j usize = i + 1; while j < text.length && text.array[j] != '\''ub, j++
             list.add(text.segment(i, j))
             i = j + 1

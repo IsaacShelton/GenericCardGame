@@ -114,10 +114,7 @@ struct ExtrasMenu (
         }
     }
     
-    func char(c uint) {}
-    func key(key, scancode, action, mods int) {}
-    
-    func scroll(x_offset, y_offset float) {
+    func scroll(_x_offset, y_offset float) {
         this.y_offset += y_offset * 10.0f
     }
     

@@ -29,10 +29,6 @@ struct VictoryMenu (
         }
     }
     
-    func char(character uint) {}
-    
-    func key(key, scancode, action, mods int) {}
-    
     func draw {
         drawButton("ok", this, func &getOkButtonPosition(*VictoryMenu, *float, *float), this.is_ok_button_hovered)
         

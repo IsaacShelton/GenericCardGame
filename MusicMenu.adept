@@ -66,13 +66,10 @@ struct MusicMenu (
         }
     }
     
-    func release(mouseX, mouseY float, button int) {
+    func release(_mouseX, _mouseY float, button int) {
         unless button == 1, return
         this.dragging = false
     }
-    
-    func char(c uint) {}
-    func key(key, scancode, action, mods int) {}
     
     func draw {
         drawLine(captViewWidth() / 2.0f - 128.0f, this.slider_height, captViewWidth() / 2.0f + 128.0f, this.slider_height, 8.0f, EndCapStyle::ROUND, &textures.unloaded_line)

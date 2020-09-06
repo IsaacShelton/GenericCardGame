@@ -441,8 +441,6 @@ struct GameState (
     }
     
     func doTrap(trap *TrapCardInstance, aggressor *CardInstance, out particles *<*CardParticle> List, out should_reflect *bool) {
-        rigged_card *CardInstance = this.getCardOnBoardByNetworkId(trap.rigged)
-        
         // Card specific activation animations
         if trap.name == "floor_spikes" {
             particles.addFloorSpikes(trap.rigged)

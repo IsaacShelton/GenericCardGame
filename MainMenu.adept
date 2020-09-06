@@ -59,9 +59,6 @@ struct MainMenu (buttons <String> List, actions <func() void> List, hovered_butt
         }
     }
     
-    func char(c uint) {}
-    func key(key, scancode, action, mods int) {}
-    
     func draw {
         each button_text String in this.buttons {
             getMainMenuButtonPosition(idx + 1, undef button_x float, undef button_y float)

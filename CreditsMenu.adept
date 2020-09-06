@@ -32,9 +32,6 @@ struct CreditsMenu (
         }
     }
     
-    func char(c uint) {}
-    func key(key, scancode, action, mods int) {}
-    
     func draw {
         captMouseViewPosition(undef mouseX float, undef mouseY float)
         
