@@ -397,7 +397,12 @@ struct CardGame (
             victim_card *CardInstance = this.getOpponentCardUnderneath(x, y)
             
             aggressor_card *CardInstance = this.state.getCardOnBoardByNetworkId(this.with_aggressor)
-            if victim_card == null && aggressor_card.traits.can_heal, victim_card = this.getMyCardUnderneath(x, y)
+            
+            // If only allowed to heal, don't allow targetting enemy cards
+            if aggressor_card.traits.only_heal, victim_card = null
+            
+            can_heal bool = aggressor_card.traits.can_heal || aggressor_card.traits.only_heal
+            if victim_card == null && can_heal, victim_card = this.getMyCardUnderneath(x, y)
             
             // Don't allow targetting self
             if victim_card && this.with_aggressor == victim_card.network_id, victim_card = null
@@ -474,8 +479,12 @@ struct CardGame (
                 using_card *CardInstance = this.state.getCardOnBoardByNetworkId(this.with_aggressor)
                 victim *CardInstance = this.getOpponentCardUnderneath(mouseX, mouseY)
                 
+                // Don't allow attacking enemy if only allowed to heal
+                if using_card.traits.only_heal, victim = null
+                
                 if victim == null {
-                    if using_card.traits.can_heal, victim = this.getMyCardUnderneath(mouseX, mouseY)
+                    can_heal bool = using_card.traits.can_heal || using_card.traits.only_heal
+                    if can_heal, victim = this.getMyCardUnderneath(mouseX, mouseY)
                     
                     // Don't allow targetting self
                     if victim && this.with_aggressor == victim.network_id, victim = null
@@ -495,7 +504,7 @@ struct CardGame (
                         end_y = victim_position.y
                     }
                 } else {
-                    friendly = using_card.traits.can_heal && mouseY > captViewHeight() / 2.0f
+                    friendly = using_card.traits.only_heal || (using_card.traits.can_heal && mouseY > captViewHeight() / 2.0f)
                 }
                 
                 drawLine(start.x, start.y, end_x, end_y, 8.0f, EndCapStyle::ROUND, friendly ? &textures.heal_line : &textures.attack_line)

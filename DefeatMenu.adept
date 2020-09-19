@@ -24,6 +24,7 @@ struct DefeatMenu (
         if this.calculateWhetherOkButtonIsHovered(x, y) {
             gamedata.setScene('mainmenu')
             soundtrack.fadeOutIntoNextSong()
+            sfx.play(sfx.button)
             return
         }
     }

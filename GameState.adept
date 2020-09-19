@@ -195,9 +195,12 @@ struct GameState (
         victim_was_dead bool = victim.isDead()
         
         // can-heal
-        if aggressor.traits.can_heal && aggressor_owner == victim_owner {
+        if (aggressor.traits.can_heal || aggressor.traits.only_heal) && aggressor_owner == victim_owner {
             victim.heal(aggressor.attack)
             if particles, particles.addHealing(victim.network_id)
+            
+            // raise-attack
+            if aggressor.traits.raise_attack, victim.attack += aggressor.traits.raise_attack
             return true
         }
         
@@ -310,8 +313,38 @@ struct GameState (
             aggressor.traits.bleeding = true
         }
         
+        // Passive Burning
+        if victim.traits.passive_burning && !aggressor.traits.fire_resistant{
+            aggressor.traits.burning += victim.traits.passive_burning
+        }
+        
+        just_died bool = victim.isDead() && !victim_was_dead
+        
+        // Trigger deathcry-adjacent (immediate version)
+        if just_died && victim.traits.deathcry_adjacent {
+            left *CardInstance = null
+            right *CardInstance = null
+            
+            each CardInstance in static victim_owner.board {
+                if it.network_id == victim.network_id {
+                    if idx != 0,                            left = victim_owner.board.getPointer(idx - 1)
+                    if idx + 1 < victim_owner.board.length, right = victim_owner.board.getPointer(idx + 1)
+                    break
+                }
+            }
+            
+            if  left,  left.attack += victim.traits.deathcry_adjacent
+            if right, right.attack += victim.traits.deathcry_adjacent
+            
+            if  left, particles.addAttackBonus(left.network_id)
+            if right, particles.addAttackBonus(right.network_id)
+            
+            // Use up deathcry adjacent so it won't apply when the card is removed
+            victim.traits.deathcry_adjacent = 0
+        }
+        
         // Trigger 'on-death' traps
-        if victim.isDead() && !victim_was_dead, each TrapCardInstance in this.trap_cards {
+        if just_died, each TrapCardInstance in this.trap_cards {
             if it.rigged == victim.network_id && it.traits.activation.kind == CardActivationKind::ON_DEATH {
                 this.doTrap(&it, aggressor, particles, null)
                 this.trap_cards.remove(idx--)

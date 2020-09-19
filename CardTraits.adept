@@ -43,6 +43,10 @@ struct CardTraits (
     adjacent_heal int,           // (creature only)
     revive int,                  // (creature only)
     ignores_attack_order bool,   // (creature only)
+    only_heal bool,              // (creature only)
+    passive_burning int,         // (creature only)
+    deathcry_adjacent int,       // (creature only)
+    raise_attack int,            // (creature only)
     
     applies_shield int,          // (spell only)
     draw_immediately int,        // (spell only)
@@ -113,6 +117,10 @@ struct CardTraits (
         this.adjacent_heal = 0
         this.revive = 0
         this.ignores_attack_order = false
+        this.only_heal = false
+        this.passive_burning = 0
+        this.deathcry_adjacent = 0
+        this.raise_attack = 0
         
         this.applies_shield = 0
         this.draw_immediately = 0
@@ -188,6 +196,10 @@ struct CardTraits (
         if this.adjacent_heal,           result.append("adjacent-heal %" % this.adjacent_heal + separator)
         if this.revive,                  result.append("revive %" % this.revive + separator)
         if this.ignores_attack_order,    result.append("ignores-attack-order" + separator)
+        if this.only_heal,               result.append("only-heal" + separator)
+        if this.passive_burning != 0,    result.append("passive-burning %" % this.passive_burning + separator)
+        if this.deathcry_adjacent != 0,  result.append("deathcry-adjacent %" % this.deathcry_adjacent + separator)
+        if this.raise_attack != 0,       result.append("raise-attack %" % this.raise_attack + separator)
         
         // Primarily for Spells
         if this.applies_shield,          result.append("applies-shield %" % this.applies_shield + separator)

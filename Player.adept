@@ -38,7 +38,7 @@ struct Player (
             
             #if enable_debugging_hotkeys
             if glfwGetKey(_captain_window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS {
-                card = gamedata.deck.getCardByName(glfwGetKey(_captain_window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS ? "reinforced_shields" : "shield_guy")
+                card = gamedata.deck.getCardByName(glfwGetKey(_captain_window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS ? "glitch_b" : "magical_anime_duck")
             }
             #end
             
@@ -178,6 +178,21 @@ struct Player (
             
             if it.traits.recycle, this.drawCardsFromDeck(it.traits.recycle, is_me, global_mana)
             if it.traits.refund > 0, this.future_extra_mana += it.cost
+            
+            // deathcry-adjacent (non-immediate version)
+            if it.traits.deathcry_adjacent {
+                left *CardInstance = null
+                right *CardInstance = null
+                
+                if idx != 0,                    left  = this.board.getPointer(idx - 1)
+                if idx + 1 < this.board.length, right = this.board.getPointer(idx + 1)
+                
+                if  left,  left.attack += it.traits.deathcry_adjacent
+                if right, right.attack += it.traits.deathcry_adjacent
+                
+                // Use up deathcry adjacent
+                it.traits.deathcry_adjacent = 0
+            }
             
             removed_network_ids.add(it.network_id)
             this.board.remove(idx--)

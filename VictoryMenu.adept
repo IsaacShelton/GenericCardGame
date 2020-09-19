@@ -6,7 +6,6 @@ struct VictoryMenu (
 ) {
     func setup {}
     func enter {}
-    
     func exit {}
     
     func __defer__ {
@@ -25,6 +24,7 @@ struct VictoryMenu (
         if this.calculateWhetherOkButtonIsHovered(x, y) {
             gamedata.setScene('mainmenu')
             soundtrack.fadeOutIntoNextSong()
+            sfx.play(sfx.button)
             return
         }
     }

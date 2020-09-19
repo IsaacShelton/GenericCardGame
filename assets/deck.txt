@@ -1,3 +1,75 @@
+sword_guy
+ creature
+ title Sword Guy
+ description When placed, adjacent creatures gain +5 attack
+ cost 4
+ hp 6
+ attack 12
+ offense sharp
+ defense flesh
+ battlecry-adjacent 5
+ore
+ creature
+ title Ore
+ description Shield x3
+ cost 2
+ hp 1
+ attack 0
+ offense blunt
+ defense shielded
+ shield 3
+magical_anime_duck
+ creature
+ title Magical Anime Duck
+ description Heals creatures instead of attacking them, and raises their attack by +2
+ cost 4
+ hp 10
+ attack 8
+ offense magic
+ defense spectral
+ only-heal
+ raise-attack 2
+lava_sludge
+ creature
+ title Lava Sludge
+ description Whenever this creature is attacked, it burns the attacker
+ cost 2
+ hp 7
+ attack 3
+ offense blunt
+ defense spectral
+ passive-burning 1
+ fire-resistant
+glitch_b
+ creature
+ title Glitch B
+ description When this creature dies, adjacent creatures gain +3 attack
+ cost 1
+ hp 1
+ attack 5
+ offense blunt
+ defense spectral
+ deathcry-adjacent 3
+fart
+ creature
+ title Fart
+ cost 4
+ description Must be attacked first
+ hp 8
+ attack 10
+ offense sharp
+ defense spectral
+ must-be-attacked-first
+cool_nacho
+ creature
+ title Cool Nacho
+ description Shield x1
+ cost 2
+ hp 2
+ attack 8
+ offense blunt
+ defense spectral
+ shield 1
 sniper
  creature
  title Sniper
