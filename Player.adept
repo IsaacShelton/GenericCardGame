@@ -38,7 +38,7 @@ struct Player (
             
             #if enable_debugging_hotkeys
             if glfwGetKey(_captain_window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS {
-                card = gamedata.deck.getCardByName(glfwGetKey(_captain_window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS ? "glitch_b" : "magical_anime_duck")
+                card = gamedata.deck.getCardByName(glfwGetKey(_captain_window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS ? "king_slime" : "pickle_guy")
             }
             #end
             
