@@ -70,7 +70,7 @@ struct GameData (
         this.manager.initialize(1024)
         this.setScene('mainmenu')
         
-        unless this.manager.connect(this.override_host.empty() ? "dockysoft.com" : this.override_host, this.override_port.empty() ? 9999 : this.override_port.toInt(), &this.error_message) {
+        unless !#get do_try_to_connect || this.manager.connect(this.override_host.empty() ? "dockysoft.com" : this.override_host, this.override_port.empty() ? 9999 : this.override_port.toInt(), &this.error_message) {
             print("Failed to connect to server")
             print(this.error_message)
         }

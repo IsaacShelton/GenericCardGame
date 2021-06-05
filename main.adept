@@ -14,6 +14,7 @@ pragma compiler_version '2.4'
 #default random_use_mt19937       true
 #default use_connect_timeout      true
 #default connect_timeout_seconds  3
+#default do_try_to_connect        false // (If server is unresponsive, this will help)
 
 #unless release
     #print "[BUILD] Using develop configuration..."
