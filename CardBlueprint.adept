@@ -69,7 +69,7 @@ struct CardBlueprint (
 }
 
 func addBlueprint(this *<CardBlueprint> List, name, title, description String, kind CardKind, cost, hp, attack int,
-        offense Offense, defense Defense, ct CardTextures, traits CardTraits) successful {
+        offense Offense, defense Defense, ct *CardTextures, traits *CardTraits) successful {
     
     unless this.add(), return false
     
@@ -83,7 +83,7 @@ func addBlueprint(this *<CardBlueprint> List, name, title, description String, k
     blueprint.attack = attack
     blueprint.offense = POD offense
     blueprint.defense = POD defense
-    blueprint.ct = ct
-    blueprint.traits = traits
+    blueprint.ct = POD *ct
+    blueprint.traits = POD *traits
     return true
 }

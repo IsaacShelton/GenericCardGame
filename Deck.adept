@@ -231,8 +231,8 @@ struct Deck (
         // Warn of undefined ai usage for spells
         if kind == CardKind::SPELL && traits.ai_usage.kind == AIUsageKind::UNDEFINED,
             print("WARNING: spell '%' has undefined AI usage" % name)
-        
-        unless this.blueprints.addBlueprint(name, title, description, kind, cost, hp, attack, offense_type, defense_type, ct, traits),
+
+        unless this.blueprints.addBlueprint(name, title, description, kind, cost, hp, attack, offense_type, defense_type, &ct, &traits),
             return false
         
         if kind == CardKind::CREATURE,
